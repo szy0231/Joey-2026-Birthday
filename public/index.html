@@ -1,0 +1,631 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<meta name="theme-color" content="#3B0B19">
+<meta property="og:title" content="Dear Joey">
+<title>Joey 的生日信箱</title>
+<link rel="preload" href="/fonts/cormorant-500i.woff2" as="font" type="font/woff2" crossorigin>
+<style>
+/* Fonts are self-hosted so the page never waits on a third-party host (some are unreachable from mainland China).
+   The Chinese serif is subset to the characters in this file: rerun scripts/subset-fonts.py after changing copy. */
+@font-face{font-family:"Cormorant Garamond";font-weight:500;font-style:normal;font-display:swap;src:url(/fonts/cormorant-500.woff2) format("woff2")}
+@font-face{font-family:"Cormorant Garamond";font-weight:500;font-style:italic;font-display:swap;src:url(/fonts/cormorant-500i.woff2) format("woff2")}
+@font-face{font-family:"Cormorant Garamond";font-weight:600;font-style:italic;font-display:swap;src:url(/fonts/cormorant-600i.woff2) format("woff2")}
+@font-face{font-family:"Noto Serif SC";font-weight:300;font-display:swap;src:url(/fonts/serif-latin-300.woff2) format("woff2");unicode-range:U+0000-024F}
+@font-face{font-family:"Noto Serif SC";font-weight:600;font-display:swap;src:url(/fonts/serif-latin-600.woff2) format("woff2");unicode-range:U+0000-024F}
+@font-face{font-family:"Noto Serif SC";font-weight:300;font-display:swap;src:url(/fonts/serif-sc-300.woff2) format("woff2");unicode-range:U+2000-FFFF}
+@font-face{font-family:"Noto Serif SC";font-weight:600;font-display:swap;src:url(/fonts/serif-sc-600.woff2) format("woff2");unicode-range:U+2000-FFFF}
+:root{padding:env(safe-area-inset-top,0px) 0 env(safe-area-inset-bottom,0px)}
+body{margin:0}
+[hidden]{display:none!important}
+
+/* Layout: one quiet centered column, one step per screen, like opening a gift box: wine-red lining, pearl letter paper, gold foil details. Single committed dark look. */
+:root{
+  --wine:#3B0B19;        /* ground: box lining */
+  --wine-deep:#25060F;   /* vignette, text on gold */
+  --wine-soft:#5C1B2C;   /* raised glow, envelope liner */
+  --pearl:#F7ECE6;       /* primary text on wine */
+  --pearl-dim:rgba(247,236,230,.62);
+  --gold:#D8B98C;        /* foil accent */
+  --gold-hi:#F4E2C2;
+  --gold-lo:#A8804D;
+  --paper:#FBF4EF;       /* letter stock */
+  --ink:#4A1423;         /* wine ink on paper */
+  --hair:rgba(216,185,140,.32);
+  --foil:linear-gradient(135deg,var(--gold-hi),var(--gold) 45%,var(--gold-lo));
+  --f-latin:"Cormorant Garamond","Songti SC",serif;
+  --f-serif:"Noto Serif SC","Songti SC","STSong",serif;
+  --f-body:system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+  --f-hand:"Kaiti SC","STKaiti","KaiTi","Songti SC","STSong",serif;
+  --ease:cubic-bezier(.22,.8,.22,1);
+  color-scheme:dark;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{
+  background:radial-gradient(120% 75% at 50% 0%, var(--wine-soft), var(--wine) 55%, var(--wine-deep)) fixed, var(--wine);
+  color:var(--pearl);
+  font:400 15px/1.8 var(--f-body);
+  padding-left:max(16px, env(safe-area-inset-left, 0px));
+  padding-right:max(16px, env(safe-area-inset-right, 0px));
+  display:flex;flex-direction:column;align-items:center;overflow-x:hidden;
+  -webkit-font-smoothing:antialiased;
+}
+/* paper grain */
+body::after{content:"";position:fixed;inset:0;pointer-events:none;opacity:.10;mix-blend-mode:overlay;z-index:1;
+  background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E")}
+#dust,#confetti{position:fixed;inset:0;width:100%;height:100%;pointer-events:none}
+#dust{z-index:0}#confetti{z-index:20}
+button,input,textarea{font:inherit;color:inherit}
+button{cursor:pointer;touch-action:manipulation}
+:focus-visible{outline:1px solid var(--gold-hi);outline-offset:4px}
+
+.shell{position:relative;z-index:2;width:100%;max-width:480px;min-height:100%;display:flex;flex-direction:column;padding-block:12px 18px}
+
+/* top bar */
+.bar{display:flex;align-items:center;justify-content:space-between;height:48px}
+.icon-btn{
+  width:44px;height:44px;border-radius:50%;border:1px solid var(--hair);background:transparent;
+  display:grid;place-items:center;transition:transform .18s var(--ease),background .25s,border-color .25s,opacity .3s;
+}
+.icon-btn:hover{border-color:var(--gold)}
+.icon-btn:active{transform:scale(.88);background:rgba(216,185,140,.16)}
+.icon-btn svg{width:18px;height:18px;stroke:var(--gold);fill:none;stroke-width:1.4;stroke-linecap:round;stroke-linejoin:round}
+.icon-btn.ghost{opacity:0;pointer-events:none}
+.step{font:500 17px/1 var(--f-latin);letter-spacing:.22em;color:var(--gold);transition:opacity .4s;font-variant-numeric:lining-nums}
+.step i{font-style:normal;color:var(--pearl-dim)}
+.rule{height:1px;background:var(--hair);margin-top:10px;transition:opacity .4s}
+.rule b{display:block;height:1px;background:var(--gold-hi);transform:scaleX(0);transform-origin:left;transition:transform .8s var(--ease)}
+.off{opacity:0}
+
+/* screens */
+.stage{flex:1;display:flex;flex-direction:column;justify-content:center;padding-block:24px}
+.screen{display:flex;flex-direction:column;gap:30px}
+.screen.enter>*{animation:rise .8s var(--ease) both}
+.screen.enter>*:nth-child(2){animation-delay:.08s}
+.screen.enter>*:nth-child(3){animation-delay:.16s}
+.screen.enter>*:nth-child(4){animation-delay:.24s}
+.screen.leave{animation:out .22s ease-in both}
+@keyframes rise{from{opacity:0;transform:translateY(18px);filter:blur(6px)}}
+@keyframes out{to{opacity:0;transform:translateY(-8px)}}
+
+h1,h2{font-family:var(--f-serif);font-weight:300;margin:0;text-wrap:balance}
+h2{font-size:clamp(24px,6.4vw,28px);letter-spacing:.12em;line-height:1.5}
+.sub{margin:0;color:var(--pearl-dim);font-weight:300;letter-spacing:.06em}
+.head{display:flex;flex-direction:column;gap:10px}
+.eyebrow{margin:0;font-size:12px;letter-spacing:.5em;text-indent:.5em;color:var(--gold)}
+.foil-text{background:var(--foil);-webkit-background-clip:text;background-clip:text;color:transparent}
+
+/* buttons */
+.btn{
+  position:relative;overflow:hidden;display:inline-flex;align-items:center;justify-content:center;gap:12px;
+  min-height:58px;padding:0 34px;border:0;border-radius:999px;background:var(--foil);color:var(--wine-deep);
+  font:600 16px/1 var(--f-serif);letter-spacing:.2em;text-indent:.2em;
+  box-shadow:0 18px 36px -16px rgba(0,0,0,.75),inset 0 1px 0 rgba(255,255,255,.55),inset 0 -1px 0 rgba(90,50,10,.25);
+  transition:transform .22s var(--ease),box-shadow .22s var(--ease),filter .2s;user-select:none;
+}
+.btn::after{content:"";position:absolute;top:0;bottom:0;left:-60%;width:40%;transform:skewX(-20deg);
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.55),transparent);transition:left .9s var(--ease)}
+.btn:hover::after,.btn:active::after{left:120%}
+.btn:hover{transform:translateY(-1px)}
+.btn:active{transform:scale(.965);filter:brightness(.94);box-shadow:0 6px 14px -8px rgba(0,0,0,.8),inset 0 2px 6px rgba(90,50,10,.35)}
+.btn.wide{width:100%}
+.link{background:none;border:0;padding:14px;color:var(--pearl-dim);font-size:13px;letter-spacing:.14em;align-self:center;
+  text-decoration:underline;text-decoration-color:var(--hair);text-underline-offset:6px;transition:color .2s}
+.link:hover,.link:active{color:var(--gold-hi)}
+.actions{display:flex;flex-direction:column;gap:8px}
+.meta{font-size:12px;letter-spacing:.24em;color:var(--pearl-dim);margin:6px 0 0;text-align:center}
+.shake{animation:shake .4s}
+@keyframes shake{20%{transform:translateX(-6px)}40%{transform:translateX(5px)}60%{transform:translateX(-3px)}80%{transform:translateX(2px)}}
+
+/* welcome */
+#s-welcome{text-align:center;gap:44px}
+.hero{display:flex;flex-direction:column;align-items:center;gap:22px}
+.crest{position:relative;width:132px;height:132px;display:grid;place-items:center}
+.crest svg{position:absolute;inset:0;width:100%;height:100%;animation:spin 48s linear infinite}
+.crest text{font:500 10.5px var(--f-latin);letter-spacing:.42em;fill:var(--gold)}
+.crest::before{content:"";position:absolute;inset:24px;border-radius:50%;border:1px solid var(--hair);
+  background:radial-gradient(circle at 35% 30%,rgba(244,226,194,.16),transparent 60%)}
+.crest b{position:relative;font:italic 500 58px/1 var(--f-latin);padding-right:.06em}
+@keyframes spin{to{transform:rotate(360deg)}}
+h1{display:flex;flex-direction:column;align-items:center;gap:6px}
+h1{gap:14px}
+h1 em{font:italic 500 clamp(58px,18.5vw,96px)/1 var(--f-latin);letter-spacing:-.01em;padding:0 .08em .06em;white-space:nowrap}
+h1 span{font-size:clamp(19px,5.2vw,22px);letter-spacing:.56em;text-indent:.56em}
+#s-welcome .sub{max-width:21em;margin-inline:auto}
+
+/* name */
+.field{display:flex;flex-direction:column;gap:6px}
+.field label{font-size:12px;letter-spacing:.4em;color:var(--gold)}
+.name-input{
+  width:100%;border:0;border-bottom:1px solid var(--hair);background:transparent;border-radius:0;outline:0;
+  font:400 28px/1.6 var(--f-hand);letter-spacing:.06em;padding:8px 0;caret-color:var(--gold-hi);transition:border-color .4s;
+}
+.name-input::placeholder{color:var(--pearl-dim);opacity:.5;font-size:20px}
+.name-input:focus{border-bottom-color:var(--gold-hi)}
+
+/* letter */
+.letter{
+  position:relative;background:linear-gradient(180deg,#FFFAF6,var(--paper));color:var(--ink);border-radius:3px;
+  padding:26px 24px 18px;display:flex;flex-direction:column;gap:6px;
+  box-shadow:0 1px 0 rgba(255,255,255,.6) inset,0 40px 60px -30px rgba(0,0,0,.75),0 12px 24px -12px rgba(0,0,0,.5);
+  transition:transform .5s var(--ease),box-shadow .5s var(--ease);
+}
+.letter::before{content:"";position:absolute;inset:8px;border:1px solid rgba(168,128,77,.28);pointer-events:none;border-radius:1px}
+.letter:focus-within{transform:translateY(-3px);box-shadow:0 1px 0 rgba(255,255,255,.6) inset,0 50px 70px -30px rgba(0,0,0,.8),0 16px 28px -12px rgba(0,0,0,.5)}
+.lt-top{display:flex;justify-content:flex-end;align-items:baseline;font:400 19px/1.8 var(--f-hand)}
+.lt-top i{font:italic 500 22px/1 var(--f-latin);color:var(--gold-lo)}
+.letter textarea{
+  position:relative;width:100%;min-height:216px;resize:none;border:0;outline:0;padding:0;color:var(--ink);
+  font:400 18px/36px var(--f-hand);background:repeating-linear-gradient(transparent 0 35px,rgba(74,20,35,.11) 35px 36px);
+  caret-color:var(--gold-lo);overflow:hidden;
+}
+.letter textarea::placeholder{color:rgba(74,20,35,.38)}
+.lt-foot{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding-top:8px}
+.count{font:500 14px/1 var(--f-latin);letter-spacing:.12em;color:rgba(74,20,35,.5);font-variant-numeric:lining-nums tabular-nums}
+.count.warn{color:#B3261E}
+.sign{font:400 18px/1.4 var(--f-hand);min-width:0;overflow-wrap:anywhere;text-align:right}
+.chips{display:flex;flex-wrap:wrap;gap:10px}
+.chip{border:1px solid var(--hair);background:transparent;border-radius:999px;padding:8px 16px;font-size:13px;font-weight:300;letter-spacing:.1em;
+  transition:transform .18s var(--ease),background .25s,border-color .25s,color .25s}
+.chip:hover{border-color:var(--gold);color:var(--gold-hi)}
+.chip:active{transform:scale(.94);background:rgba(216,185,140,.16)}
+
+/* video */
+.drop{
+  position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;text-align:center;
+  min-height:240px;padding:28px;border:1px solid var(--hair);border-radius:4px;cursor:pointer;
+  background:linear-gradient(180deg,rgba(247,236,230,.05),rgba(247,236,230,.015));
+  transition:transform .3s var(--ease),border-color .3s,background .3s;
+}
+.drop::before{content:"";position:absolute;inset:8px;border:1px dashed var(--hair);border-radius:2px;pointer-events:none;transition:border-color .3s}
+.drop:hover,.drop.over{border-color:var(--gold)}
+.drop.over{transform:scale(1.015);background:rgba(216,185,140,.10)}
+.drop.over::before{border-color:var(--gold-hi)}
+.drop:active{transform:scale(.985)}
+.drop input{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer}
+.cam{width:68px;height:68px;border-radius:50%;border:1px solid var(--gold);display:grid;place-items:center;transition:transform .4s var(--ease)}
+.drop:hover .cam{transform:scale(1.06)}
+.cam svg{width:26px;height:26px;stroke:var(--gold-hi);fill:none;stroke-width:1.2;stroke-linecap:round;stroke-linejoin:round}
+.drop strong{font:400 18px/1.4 var(--f-serif);letter-spacing:.24em;text-indent:.24em}
+.drop small{color:var(--pearl-dim);font-size:12px;letter-spacing:.14em;font-weight:300}
+.clip{border:1px solid var(--hair);border-radius:4px;padding:8px;background:rgba(247,236,230,.04);animation:rise .7s var(--ease) both}
+.clip video{display:block;width:100%;max-height:44vh;background:#000;border-radius:2px}
+.clip-row{display:flex;align-items:center;gap:12px;padding:12px 6px 4px}
+.clip-info{flex:1;min-width:0}
+.clip-name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:.04em}
+.clip-meta{font:500 14px/1.6 var(--f-latin);letter-spacing:.14em;color:var(--gold);font-variant-numeric:lining-nums tabular-nums}
+.clip .icon-btn{flex:none;width:40px;height:40px}
+
+/* send */
+#s-send{align-items:center;text-align:center;gap:26px}
+.env{position:relative;width:250px;height:166px;margin-top:clamp(64px,12vh,118px);perspective:800px;filter:drop-shadow(0 34px 30px rgba(0,0,0,.5))}
+.env-back,.env-pocket,.env-flap{position:absolute;inset:0;border-radius:3px}
+.env-back{background:linear-gradient(180deg,var(--wine-soft) 0 58%,#EFE1D8 58%)}
+.env-card{position:absolute;left:18px;right:18px;top:8px;height:142px;z-index:2;background:var(--paper);color:var(--ink);border-radius:2px;
+  padding:14px;text-align:left;font:400 11.5px/1.7 var(--f-hand);overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.25);
+  transform:translateY(-122px) rotate(-2.5deg);transition:transform 1s cubic-bezier(.6,0,.2,1)}
+.env-card b{display:block;font-weight:400;font-size:13px}
+.env-pocket{z-index:3;background:linear-gradient(180deg,#EADBD1,#FBF4EF);clip-path:polygon(0 0,50% 58%,100% 0,100% 100%,0 100%)}
+.env-flap{z-index:1;height:60%;background:#7A2A3F;clip-path:polygon(0 0,100% 0,50% 100%);
+  transform-origin:50% 0;transform:rotateX(180deg);transition:transform .7s cubic-bezier(.5,0,.2,1),background .35s .2s}
+.env.drop .env-card{transform:translateY(0) rotate(0)}
+.env.close .env-flap{transform:rotateX(0);z-index:4;background:linear-gradient(180deg,#F6EBE4,#E6D5CA)}
+.seal{position:absolute;left:50%;top:58%;z-index:5;width:56px;height:56px;margin:-28px 0 0 -28px;border-radius:50%;
+  background:radial-gradient(circle at 34% 28%,var(--gold-hi),var(--gold) 45%,var(--gold-lo));color:var(--wine);
+  display:grid;place-items:center;font:italic 600 30px/1 var(--f-latin);
+  box-shadow:0 4px 10px rgba(0,0,0,.35),inset 0 0 0 4px rgba(168,128,77,.35),inset 0 1px 0 rgba(255,255,255,.6);
+  opacity:0;transform:scale(2.2) rotate(-20deg)}
+.env.sealed .seal{opacity:1;transform:scale(1) rotate(-6deg);transition:transform .38s cubic-bezier(.3,1.5,.5,1),opacity .14s}
+.env.sealed{animation:thunk .4s .08s}
+@keyframes thunk{35%{transform:scale(.965)}70%{transform:scale(1.012)}}
+.track{width:200px;height:1px;background:var(--hair);transition:opacity .5s}
+.track b{display:block;height:1px;background:var(--gold-hi);box-shadow:0 0 8px var(--gold);transform:scaleX(0);transform-origin:left}
+.pct{font:500 20px/1 var(--f-latin);letter-spacing:.1em;color:var(--gold);font-variant-numeric:lining-nums tabular-nums}
+.done-actions{width:100%;animation:rise .9s .3s var(--ease) both}
+
+/* toast, note */
+.toast{position:fixed;left:50%;bottom:calc(30px + env(safe-area-inset-bottom,0px));transform:translate(-50%,24px);opacity:0;pointer-events:none;
+  background:var(--pearl);color:var(--wine);padding:11px 22px;border-radius:999px;font-size:13px;letter-spacing:.12em;white-space:nowrap;
+  box-shadow:0 16px 30px -12px rgba(0,0,0,.7);transition:transform .5s var(--ease),opacity .3s;z-index:30}
+.toast.show{transform:translate(-50%,0);opacity:1}
+#note{min-height:1.8em;margin:-10px 0 0}
+
+@media (min-width:720px){.shell{padding-block:28px 28px}}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
+}
+</style>
+</head>
+<body>
+
+<canvas id="dust"></canvas>
+<div class="shell">
+  <header>
+    <div class="bar">
+      <button class="icon-btn ghost" id="back" aria-label="上一步"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
+      <div class="step off" id="step" aria-hidden="true"><span id="step-n">01</span> <i>/ 03</i></div>
+      <button class="icon-btn" id="snd" aria-label="关闭声音" aria-pressed="true"><svg viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path id="snd-wave" d="M17 8.5a5 5 0 010 7"/></svg></button>
+    </div>
+    <div class="rule off" id="rule"><b id="rule-b"></b></div>
+  </header>
+
+  <main class="stage">
+    <!-- welcome -->
+    <section class="screen enter" id="s-welcome">
+      <div class="hero">
+        <div class="crest" aria-hidden="true">
+          <svg viewBox="0 0 132 132"><defs><path id="ring" d="M66 66m-58 0a58 58 0 1 1 116 0a58 58 0 1 1-116 0"/></defs>
+            <text><textPath href="#ring">HAPPY BIRTHDAY · DEAR JOEY · HAPPY BIRTHDAY · DEAR JOEY ·</textPath></text></svg>
+          <b class="foil-text">J</b>
+        </div>
+        <h1><em class="foil-text">Dear Joey</em><span>生日快乐！！！</span></h1>
+      </div>
+      <div class="actions">
+        <button class="btn wide" data-go="name">传送 Best wishes！</button>
+      </div>
+    </section>
+
+    <!-- name -->
+    <section class="screen" id="s-name" hidden>
+      <div class="head"><h2>在下是</h2><p class="sub">这个名字会署在你的祝福下面。</p></div>
+      <div class="field">
+        <label for="name">署名</label>
+        <input class="name-input" id="name" maxlength="20" autocomplete="off" enterkeyhint="next">
+      </div>
+      <button class="btn wide" id="name-next">下一步</button>
+    </section>
+
+    <!-- message -->
+    <section class="screen" id="s-msg" hidden>
+      <div class="head"><h2>发挥文采</h2><p class="sub">欢迎各种 language</p></div>
+      <div class="letter" id="letter">
+        <div class="lt-top"><i aria-hidden="true">J.</i></div>
+        <textarea id="msg" aria-label="祝福内容"></textarea>
+      </div>
+      <button class="btn wide" id="msg-next">下一步</button>
+    </section>
+
+    <!-- video -->
+    <section class="screen" id="s-video" hidden>
+      <div class="head"><h2>祝福视频 time</h2><p class="sub">Don't be shy</p></div>
+      <div>
+        <label class="drop" id="drop">
+          <input type="file" id="file" accept="video/*" aria-label="选择视频">
+          <span class="cam"><svg viewBox="0 0 24 24"><rect x="3" y="6.5" width="13" height="11" rx="2"/><path d="M16 10.5l5-3v9l-5-3z"/></svg></span>
+        </label>
+        <div class="clip" id="clip" hidden>
+          <video id="preview" playsinline controls muted></video>
+          <div class="clip-row">
+            <div class="clip-info"><div class="clip-name" id="clip-name"></div><div class="clip-meta" id="clip-meta"></div></div>
+            <button class="icon-btn" id="clip-x" aria-label="换一段视频"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+          </div>
+        </div>
+      </div>
+      <div class="actions">
+        <button class="btn wide" id="send">寄给 Joey Let's go</button>
+        <button class="link" id="skip">不传视频，只寄文字</button>
+      </div>
+    </section>
+
+    <!-- send / done -->
+    <section class="screen" id="s-send" hidden>
+      <div class="env" id="env" aria-hidden="true">
+        <div class="env-back"></div>
+        <div class="env-card"><b>亲爱的 Joey：</b><span id="env-text"></span></div>
+        <div class="env-pocket"></div>
+        <div class="env-flap"></div>
+        <div class="seal">J</div>
+      </div>
+      <div class="head" style="align-items:center" aria-live="polite">
+        <h2 id="send-h">等俺一下</h2>
+        <p class="sub" id="send-p"></p>
+      </div>
+      <div class="track" id="track"><b id="bar"></b></div>
+      <p class="meta" id="note" role="status"></p>
+      <div class="actions done-actions" id="fail" hidden>
+        <button class="btn wide" id="retry">再试一次</button>
+        <button class="link" id="edit">返回修改</button>
+      </div>
+      <div class="actions done-actions" id="done" hidden>
+        <p class="meta">Keep this a secret until :)</p>
+      </div>
+    </section>
+  </main>
+
+</div>
+
+<div class="toast" id="toast" role="status"></div>
+<canvas id="confetti"></canvas>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const order = ['welcome','name','msg','video','send'];
+  const state = { step:'welcome', file:null, url:null, busy:false, sound:true, clientId:null, token:null };
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  document.addEventListener('touchstart', () => {}, {passive:true}); // enables :active on iOS
+
+  /* ---------- feel: sound + haptics ---------- */
+  let ac;
+  function tone(f0, f1, dur, type, vol, delay = 0){
+    if (!state.sound) return;
+    try {
+      ac = ac || new (window.AudioContext || window.webkitAudioContext)();
+      if (ac.state === 'suspended') ac.resume();
+      const t = ac.currentTime + delay, o = ac.createOscillator(), g = ac.createGain();
+      o.type = type; o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(f1, t + dur);
+      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + .012); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      o.connect(g).connect(ac.destination); o.start(t); o.stop(t + dur + .02);
+    } catch (e) {}
+  }
+  const buzz = ms => { try { navigator.vibrate && navigator.vibrate(ms); } catch (e) {} };
+  const fx = {
+    tap(){ tone(880, 1320, .16, 'sine', .035); buzz(8); },
+    soft(){ tone(520, 440, .1, 'sine', .03); buzz(5); },
+    nope(){ tone(196, 165, .2, 'sine', .07); buzz([12,40,12]); },
+    thunk(){ tone(130, 50, .24, 'triangle', .28); buzz(30); },
+    yay(){ [659,784,988,1319].forEach((f,i) => tone(f, f, .9, 'sine', .04, .16 + i*.11)); }
+  };
+
+  /* ---------- navigation ---------- */
+  function go(to, back){
+    if (state.busy || to === state.step) return;
+    state.busy = true;
+    const cur = $('s-' + state.step), nxt = $('s-' + to);
+    cur.classList.remove('enter'); cur.classList.add('leave');
+    setTimeout(() => {
+      cur.hidden = true; cur.classList.remove('leave');
+      nxt.hidden = false; nxt.classList.add('enter');
+      state.step = to; state.busy = false;
+      const i = order.indexOf(to), mid = i >= 1 && to !== 'send';
+      $('back').classList.toggle('ghost', !mid);
+      $('step').classList.toggle('off', !mid); $('rule').classList.toggle('off', !mid);
+      if (mid) { $('step-n').textContent = '0' + i; $('rule-b').style.transform = 'scaleX(' + i / 3 + ')'; }
+      window.scrollTo(0, 0);
+      if (to === 'name') setTimeout(() => $('name').focus(), 80);
+      if (to === 'msg') grow();
+    }, reduce ? 0 : 220);
+  }
+  $('back').onclick = () => { fx.soft(); go(order[order.indexOf(state.step) - 1], true); };
+  document.querySelectorAll('[data-go]').forEach(b => b.onclick = () => { fx.tap(); go(b.dataset.go); });
+
+  function refuse(el, msg){
+    fx.nope(); el.classList.remove('shake'); void el.offsetWidth; el.classList.add('shake'); if (msg) toast(msg);
+  }
+  let toastT;
+  function toast(msg){
+    const t = $('toast'); t.textContent = msg; t.classList.add('show');
+    clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 2400);
+  }
+
+  /* ---------- draft ---------- */
+  const save = () => { try { localStorage.setItem('joey-draft', JSON.stringify({ n:$('name').value, m:$('msg').value, id:state.clientId, t:state.token })); } catch (e) {} };
+  try { const d = JSON.parse(localStorage.getItem('joey-draft') || '{}'); $('name').value = d.n || ''; $('msg').value = d.m || ''; state.clientId = d.id || null; state.token = d.t || null; } catch (e) {}
+
+  /* ---------- name ---------- */
+  function nameNext(){
+    if (!$('name').value.trim()) return refuse($('name'));
+    fx.tap(); $('name').blur(); go('msg');
+  }
+  $('name-next').onclick = nameNext;
+  $('name').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.isComposing) nameNext(); });
+  $('name').addEventListener('input', save);
+
+  /* ---------- message ---------- */
+  const msg = $('msg');
+  function grow(){
+    msg.style.height = 'auto';
+    msg.style.height = Math.max(216, Math.ceil(msg.scrollHeight / 36) * 36) + 'px';
+  }
+  msg.addEventListener('input', () => { grow(); save(); });
+  document.querySelectorAll('.chip').forEach(c => c.onclick = () => {
+    fx.soft();
+    msg.value = (msg.value.trim() ? msg.value.replace(/\s+$/, '') + '\n' : '') + c.dataset.t;
+    grow(); save(); msg.focus(); msg.setSelectionRange(msg.value.length, msg.value.length);
+  });
+  $('msg-next').onclick = () => {
+    if (!msg.value.trim()) return refuse($('letter'));
+    fx.tap(); msg.blur(); go('video');
+  };
+
+  /* ---------- video ---------- */
+  const fmtSize = b => b > 1e9 ? (b/1e9).toFixed(2) + ' GB' : (b/1e6).toFixed(1) + ' MB';
+  const fmtDur = s => isFinite(s) ? Math.floor(s/60) + ':' + String(Math.round(s%60)).padStart(2,'0') : '';
+  function setFile(f){
+    if (!f) return;
+    if (!f.type.startsWith('video/')) return refuse($('drop'), '这个文件不是视频');
+    clearFile();
+    state.file = f; state.url = URL.createObjectURL(f);
+    const v = $('preview'); v.hidden = false; v.src = state.url;
+    $('clip-name').textContent = f.name; $('clip-meta').textContent = fmtSize(f.size);
+    $('drop').hidden = true; $('clip').hidden = false; $('skip').hidden = true;
+    fx.tap(); toast('视频选好了');
+  }
+  function clearFile(){
+    if (state.url) URL.revokeObjectURL(state.url);
+    state.file = state.url = null;
+    $('preview').removeAttribute('src'); $('file').value = '';
+    $('drop').hidden = false; $('clip').hidden = true; $('skip').hidden = false;
+  }
+  $('preview').addEventListener('loadedmetadata', e => {
+    if (state.file) $('clip-meta').textContent = fmtSize(state.file.size) + ' · ' + fmtDur(e.target.duration);
+  });
+  $('preview').addEventListener('error', e => { e.target.hidden = true; }); // unsupported codec: keep the file, hide the player
+  $('file').addEventListener('change', e => setFile(e.target.files[0]));
+  $('clip-x').onclick = () => { fx.soft(); clearFile(); };
+  const drop = $('drop');
+  ['dragenter','dragover'].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.add('over'); }));
+  ['dragleave','drop'].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.remove('over'); }));
+  drop.addEventListener('drop', e => setFile(e.dataTransfer.files[0]));
+  window.addEventListener('dragover', e => e.preventDefault());
+  window.addEventListener('drop', e => e.preventDefault());
+
+  $('send').onclick = () => {
+    if (!state.file) return refuse($('drop'), '先选一段视频，或点下面只寄文字');
+    send();
+  };
+  $('skip').onclick = send;
+
+  /* ---------- send: real upload, resumable ---------- */
+  const CHUNK = 4 * 1024 * 1024;
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const uuid = () => crypto.randomUUID ? crypto.randomUUID()
+    : '10000000-1000-4000-8000-100000000000'.replace(/[018]/g, c => (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16));
+  class Fatal extends Error { constructor(code){ super(code || 'unknown'); this.code = code; } }
+  const setNote = t => { if ($('note').textContent !== t) $('note').textContent = t; };
+
+  // One HTTP call. Resolves {status, body}; rejects only when the network fails or stalls.
+  function call(method, url, { json, blob, token, onProgress } = {}){
+    return new Promise((resolve, reject) => {
+      const x = new XMLHttpRequest(); let dog;
+      const watch = () => { clearTimeout(dog); dog = setTimeout(() => x.abort(), 45000); }; // no bytes for 45 s = stalled
+      x.open(method, url); x.responseType = 'json';
+      if (token) x.setRequestHeader('X-Wish-Token', token);
+      x.setRequestHeader('Content-Type', blob ? 'application/octet-stream' : 'application/json');
+      x.upload.onprogress = e => { watch(); if (onProgress) onProgress(e.loaded); };
+      x.onload = () => { clearTimeout(dog); resolve({ status: x.status, body: x.response || {} }); };
+      x.onerror = x.onabort = () => { clearTimeout(dog); reject(new Error('network')); };
+      watch(); x.send(blob || (json ? JSON.stringify(json) : null));
+    });
+  }
+  // Keep trying through dropped connections and server restarts; give up only on a real refusal.
+  async function persist(fn){
+    for (let n = 0;; n++){
+      try { const r = await fn(); if (r.status && (r.status < 500 || r.status === 507)) { setNote(''); return r; } } catch (e) {}
+      setNote('网络开小差了，正在重连…');
+      await sleep(Math.min(1000 * 2 ** n, 8000));
+    }
+  }
+  async function deliver(progress){
+    const name = $('name').value.trim(), message = msg.value.trim(), f = state.file;
+    state.clientId = state.clientId || uuid(); save();
+    let r = await persist(() => call('POST', '/api/wishes', { json: { clientId: state.clientId, token: state.token, name, message } }));
+    if (r.status === 409) { // this browser lost its key for an older draft: start a fresh wish
+      state.clientId = uuid(); state.token = null; save();
+      r = await persist(() => call('POST', '/api/wishes', { json: { clientId: state.clientId, name, message } }));
+    }
+    if (r.status !== 200) throw new Fatal(r.body.error);
+    state.token = r.body.token; save();
+    if (!f) return;
+    const base = '/api/wishes/' + state.clientId + '/video', token = state.token;
+    r = await persist(() => call('POST', base, { token, json: { name: f.name, size: f.size, type: f.type } }));
+    if (r.status !== 200) throw new Fatal(r.body.error);
+    let off = r.body.offset;
+    while (off < f.size){
+      const start = off, at = n => progress(.03 + .97 * (start + n) / f.size);
+      at(0);
+      r = await persist(() => call('PUT', base + '?offset=' + start, { token, blob: f.slice(start, start + CHUNK), onProgress: at }));
+      if (typeof r.body.offset !== 'number') throw new Fatal(r.body.error); // 200 = accepted, 409 = realign to the server's offset
+      off = r.body.offset;
+    }
+  }
+
+  let sending = false, wake = null;
+  addEventListener('beforeunload', e => { if (sending) { e.preventDefault(); e.returnValue = ''; } });
+  function send(){
+    if (sending) return;
+    sending = true; fx.tap();
+    const env = $('env'); env.className = 'env';
+    $('env-text').textContent = msg.value.trim().slice(0, 90);
+    $('send-h').textContent = '等俺一下'; $('send-p').innerHTML = '<span class="pct" id="pct">0%</span>';
+    $('track').hidden = $('send-p').hidden = $('note').hidden = false; $('bar').style.transform = 'scaleX(0)';
+    $('done').hidden = true; $('fail').hidden = true; setNote('');
+    $('preview').pause();
+    go('send');
+    setTimeout(() => env.classList.add('drop'), 600);
+    setTimeout(() => { env.classList.add('close'); fx.soft(); }, 1700);
+    try { navigator.wakeLock && navigator.wakeLock.request('screen').then(w => { wake = w; }, () => {}); } catch (e) {}
+
+    const t0 = performance.now(); let shown = 0, target = state.file ? 0 : .7;
+    (function paint(){
+      shown += (target - shown) * .1; if (target - shown < .001) shown = target;
+      $('bar').style.transform = 'scaleX(' + shown + ')';
+      const el = $('pct'); if (el) el.textContent = Math.floor(shown * 100) + '%';
+      if (sending) requestAnimationFrame(paint);
+    })();
+    deliver(p => { target = Math.max(target, Math.min(p, .99)); })
+      .then(async () => {
+        await sleep(Math.max(0, 2700 - (performance.now() - t0))); // let the envelope finish closing
+        target = 1; await sleep(500);
+        sending = false; finish();
+      })
+      .catch(e => { sending = false; failed(e); })
+      .finally(() => { try { wake && wake.release(); } catch (e) {} wake = null; });
+  }
+  function finish(){
+    $('env').classList.add('sealed'); fx.thunk(); fx.yay(); foil();
+    $('send-h').textContent = 'Perfect！';
+    $('track').hidden = $('send-p').hidden = $('note').hidden = true;
+    $('done').hidden = false;
+    state.clientId = state.token = null;
+    try { localStorage.removeItem('joey-draft'); } catch (e) {}
+  }
+  const ERR = { too_large: '视频太大了，上限 4 GB，换一段小一点的吧', server_full: '信箱暂时满了，过一会儿再试' };
+  function failed(e){
+    console.error(e); fx.nope();
+    $('send-h').textContent = '没寄出去';
+    $('send-p').textContent = ERR[e.code] || '出了点问题，再试一次';
+    $('track').hidden = $('note').hidden = true; $('fail').hidden = false;
+  }
+  $('retry').onclick = send;
+  $('edit').onclick = () => { fx.soft(); go('video', true); };
+
+  /* ---------- sound toggle ---------- */
+  $('snd').onclick = () => {
+    state.sound = !state.sound;
+    $('snd').setAttribute('aria-pressed', state.sound);
+    $('snd').setAttribute('aria-label', state.sound ? '关闭声音' : '打开声音');
+    $('snd-wave').setAttribute('d', state.sound ? 'M17 8.5a5 5 0 010 7' : 'M17 9.5l4 5M21 9.5l-4 5');
+    fx.tap(); toast(state.sound ? '声音已打开' : '声音已关闭');
+  };
+
+  /* ---------- ambient gold dust ---------- */
+  if (!reduce) (() => {
+    const c = $('dust'), x = c.getContext('2d'); let W, H, dpr;
+    const size = () => { dpr = Math.min(devicePixelRatio || 1, 2); W = c.width = innerWidth * dpr; H = c.height = innerHeight * dpr; };
+    size(); addEventListener('resize', size);
+    const ps = Array.from({length: 34}, () => ({ x: Math.random(), y: Math.random(), r: .6 + Math.random() * 1.6, v: .00012 + Math.random() * .00028, p: Math.random() * 6.28, d: (Math.random() - .5) * .0002 }));
+    (function frame(t){
+      x.clearRect(0, 0, W, H);
+      ps.forEach(p => {
+        p.y -= p.v; p.x += p.d; if (p.y < -.02) { p.y = 1.02; p.x = Math.random(); }
+        x.globalAlpha = .12 + .3 * (0.5 + 0.5 * Math.sin(t / 1400 + p.p));
+        x.fillStyle = '#F4E2C2'; x.beginPath(); x.arc(p.x * W, p.y * H, p.r * dpr, 0, 6.3); x.fill();
+      });
+      requestAnimationFrame(frame);
+    })(0);
+  })();
+
+  /* ---------- gold foil shower ---------- */
+  function foil(){
+    if (reduce) return;
+    const c = $('confetti'), x = c.getContext('2d'), dpr = Math.min(devicePixelRatio || 1, 2);
+    const W = c.width = innerWidth * dpr, H = c.height = innerHeight * dpr;
+    const cols = ['#F4E2C2','#D8B98C','#A8804D','#F7ECE6','#E9B7C0'];
+    const ps = Array.from({length: 90}, (_, i) => {
+      const a = -Math.PI/2 + (Math.random() - .5) * 2.4, v = (4 + Math.random() * 10) * dpr;
+      return { x: W/2, y: H*.4, vx: Math.cos(a)*v, vy: Math.sin(a)*v, s: (3 + Math.random()*6) * dpr, r: Math.random()*6, vr: (Math.random()-.5)*.3, w: Math.random()*6.28, c: cols[i % cols.length] };
+    });
+    let n = 0; const life = 260;
+    (function frame(){
+      x.clearRect(0, 0, W, H);
+      ps.forEach(p => {
+        p.vy += .16 * dpr; p.vy = Math.min(p.vy, 3.2 * dpr); p.vx *= .975; p.w += .09;
+        p.x += p.vx + Math.sin(p.w) * .9 * dpr; p.y += p.vy; p.r += p.vr;
+        x.save(); x.translate(p.x, p.y); x.rotate(p.r); x.scale(1, Math.cos(p.w)); // flutter
+        x.fillStyle = p.c; x.globalAlpha = Math.max(0, Math.min(1, (life - n) / 80));
+        x.fillRect(-p.s/2, -p.s/2, p.s, p.s); x.restore();
+      });
+      ++n < life ? requestAnimationFrame(frame) : x.clearRect(0, 0, W, H);
+    })();
+  }
+
+  grow();
+})();
+</script>
+</body>
+</html>
