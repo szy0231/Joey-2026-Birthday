@@ -2,9 +2,10 @@
 //
 // Durability model
 //   1. A wish is written to local disk (data/wishes/<id>.json) before the client is told it is saved.
-//   2. A video is appended chunk by chunk to data/incoming/<id>; the client can resume after any drop.
-//   3. Once complete, a background worker copies the wish JSON and the original video to R2 and
-//      verifies the remote size. The local video is deleted only after that check passes.
+//   2. A video (and an optional cover photo) is appended chunk by chunk under data/incoming/; the client can
+//      resume after any drop.
+//   3. Once complete, a background worker copies the wish JSON and the original files to R2 and
+//      verifies the remote size. A local file is deleted only after that check passes.
 //   4. On boot the worker rescans every wish, so a crash or reboot never strands a file.
 import express from 'express';
 import crypto from 'node:crypto';
@@ -42,7 +43,6 @@ function loadEnv(file) {
 /* ---------- wish records ---------- */
 const ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const wishPath = id => path.join(WISHES, id + '.json');
-const incomingPath = id => path.join(INCOMING, id);
 
 async function readWish(id) {
   if (!ID_RE.test(id)) return null;
@@ -70,12 +70,22 @@ const sameToken = (a, b) => {
   const x = Buffer.from(String(a || '')), y = Buffer.from(String(b || ''));
   return x.length === y.length && crypto.timingSafeEqual(x, y);
 };
-const EXT_OK = new Set(['mp4', 'mov', 'm4v', 'webm', 'mkv', 'avi', '3gp', 'mpg', 'mpeg', 'wmv', 'hevc', 'ts', 'mts']);
-const extOf = name => {
-  const e = (String(name).match(/\.([A-Za-z0-9]{1,5})$/) || [])[1];
-  return e && EXT_OK.has(e.toLowerCase()) ? e.toLowerCase() : 'mp4';
+// A wish can carry two files: the video and a postcard cover photo. Both use the same resumable protocol.
+const KINDS = {
+  video: {
+    max: MAX_VIDEO, prefix: 'originals', fallback: 'mp4', local: id => path.join(INCOMING, id),
+    exts: new Set(['mp4', 'mov', 'm4v', 'webm', 'mkv', 'avi', '3gp', 'mpg', 'mpeg', 'wmv', 'hevc', 'ts', 'mts']),
+  },
+  cover: {
+    max: 40 * 1024 ** 2, prefix: 'covers', fallback: 'jpg', local: id => path.join(INCOMING, id + '.cover'),
+    exts: new Set(['jpg', 'jpeg', 'png', 'webp', 'heic', 'heif', 'gif']),
+  },
 };
-const videoKey = w => `originals/${w.id}.${extOf(w.video.name)}`;
+const extOf = (kind, name) => {
+  const e = (String(name).match(/\.([A-Za-z0-9]{1,5})$/) || [])[1];
+  return e && KINDS[kind].exts.has(e.toLowerCase()) ? e.toLowerCase() : KINDS[kind].fallback;
+};
+const fileKey = (kind, w) => `${KINDS[kind].prefix}/${w.id}.${extOf(kind, w[kind].name)}`;
 
 /* ---------- app ---------- */
 const app = express();
@@ -109,7 +119,7 @@ app.post('/api/wishes', express.json({ limit: '200kb' }), wrap(async (req, res) 
       id: clientId, token: crypto.randomBytes(24).toString('hex'),
       name, message, createdAt: new Date().toISOString(),
       userAgent: String(req.get('user-agent') || '').slice(0, 300),
-      video: null, synced: false,
+      video: null, cover: null, synced: false,
     };
     await writeWish(w);
     return w;
@@ -125,52 +135,52 @@ const own = wrap(async (req, res, next) => {
   if (!w || !sameToken(w.token, req.get('x-wish-token'))) return fail(res, 404, 'not_found');
   req.wish = w; next();
 });
-const offsetOf = async id => { try { return (await fsp.stat(incomingPath(id))).size; } catch { return 0; } };
+const offsetOf = async (kind, id) => { try { return (await fsp.stat(KINDS[kind].local(id))).size; } catch { return 0; } };
+const FILE = '/api/wishes/:id/:kind(video|cover)';
 
-// Declare the video. Calling it again with the same file resumes; a different file starts over.
-app.post('/api/wishes/:id/video', express.json({ limit: '20kb' }), own, wrap(async (req, res) => {
-  const size = Number(req.body?.size), name = String(req.body?.name ?? 'video').slice(0, 200);
+// Declare a file. Calling it again with the same file resumes; a different file starts over.
+app.post(FILE, express.json({ limit: '20kb' }), own, wrap(async (req, res) => {
+  const { id, kind } = req.params;
+  const size = Number(req.body?.size), name = String(req.body?.name ?? kind).slice(0, 200);
   const type = String(req.body?.type ?? '').slice(0, 100);
   if (!Number.isSafeInteger(size) || size <= 0) return fail(res, 400, 'bad_size');
-  if (size > MAX_VIDEO) return fail(res, 413, 'too_large', { max: MAX_VIDEO });
+  if (size > KINDS[kind].max) return fail(res, 413, 'too_large', { max: KINDS[kind].max });
 
-  const out = await withWish(req.params.id, async () => {
-    const w = await readWish(req.params.id);
-    if (w.video && w.video.status !== 'uploading' && w.video.size === size && w.video.name === name) {
-      return { offset: size, done: true };
-    }
-    const same = w.video && w.video.status === 'uploading' && w.video.size === size && w.video.name === name;
+  const out = await withWish(id, async () => {
+    const w = await readWish(id), f = w[kind];
+    if (f && f.status !== 'uploading' && f.size === size && f.name === name) return { offset: size, done: true };
+    const same = f && f.status === 'uploading' && f.size === size && f.name === name;
     if (!same) {
-      await fsp.rm(incomingPath(w.id), { force: true });
+      await fsp.rm(KINDS[kind].local(id), { force: true });
       const { bavail, bsize } = await fsp.statfs(DATA);
       if (bavail * bsize < size + DISK_RESERVE) return { full: true };
-      w.video = { name, type, size, status: 'uploading', startedAt: new Date().toISOString() };
+      w[kind] = { name, type, size, status: 'uploading', startedAt: new Date().toISOString() };
       w.synced = false;
       await writeWish(w);
     }
-    return { offset: Math.min(await offsetOf(w.id), size) };
+    return { offset: Math.min(await offsetOf(kind, id), size) };
   });
   if (out.full) return fail(res, 507, 'server_full');
   res.json(out);
 }));
 
-app.get('/api/wishes/:id/video', own, wrap(async (req, res) => {
-  const v = req.wish.video;
-  if (!v) return fail(res, 404, 'no_video');
-  res.json({ offset: v.status === 'uploading' ? await offsetOf(req.wish.id) : v.size, size: v.size, done: v.status !== 'uploading' });
+app.get(FILE, own, wrap(async (req, res) => {
+  const { id, kind } = req.params, f = req.wish[kind];
+  if (!f) return fail(res, 404, 'no_file');
+  res.json({ offset: f.status === 'uploading' ? await offsetOf(kind, id) : f.size, size: f.size, done: f.status !== 'uploading' });
 }));
 
 // Append one chunk at ?offset=N. If the offset is wrong, answer 409 with the real one so the client realigns.
-app.put('/api/wishes/:id/video', own, (req, res, next) => {
-  withWish(req.params.id, async () => {
-    const w = await readWish(req.params.id);
-    const v = w.video;
-    if (!v) return fail(res, 404, 'no_video');
-    if (v.status !== 'uploading') return res.json({ offset: v.size, done: true });
-    const have = await offsetOf(w.id), offset = Number(req.query.offset);
+app.put(FILE, own, (req, res, next) => {
+  const { id, kind } = req.params;
+  withWish(id, async () => {
+    const w = await readWish(id), f = w[kind];
+    if (!f) return fail(res, 404, 'no_file');
+    if (f.status !== 'uploading') return res.json({ offset: f.size, done: true });
+    const have = await offsetOf(kind, id), offset = Number(req.query.offset);
     if (offset !== have) { req.resume(); return fail(res, 409, 'offset_mismatch', { offset: have }); }
     const len = Number(req.get('content-length'));
-    if (!Number.isSafeInteger(len) || len <= 0 || len > MAX_CHUNK || have + len > v.size) { req.resume(); return fail(res, 400, 'bad_chunk'); }
+    if (!Number.isSafeInteger(len) || len <= 0 || len > MAX_CHUNK || have + len > f.size) { req.resume(); return fail(res, 400, 'bad_chunk'); }
 
     // Buffer the chunk, then append in one write: a dropped connection never leaves a partial chunk on disk.
     const parts = []; let got = 0;
@@ -178,16 +188,16 @@ app.put('/api/wishes/:id/video', own, (req, res, next) => {
       for await (const c of req) { got += c.length; if (got > len) break; parts.push(c); }
     } catch { return; } // client went away; nothing was written
     if (got !== len) return fail(res, 400, 'short_chunk', { offset: have });
-    const fh = await fsp.open(incomingPath(w.id), 'a');
+    const fh = await fsp.open(KINDS[kind].local(id), 'a');
     try { await fh.write(Buffer.concat(parts)); await fh.sync(); } finally { await fh.close(); }
 
     const now = have + len;
-    if (now === v.size) {
-      v.status = 'received'; v.receivedAt = new Date().toISOString();
+    if (now === f.size) {
+      f.status = 'received'; f.receivedAt = new Date().toISOString();
       await writeWish(w);
       kick();
     }
-    res.json({ offset: now, done: now === v.size });
+    res.json({ offset: now, done: now === f.size });
   }).catch(next);
 });
 
@@ -203,19 +213,21 @@ async function allWishes() {
 }
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const mb = n => (n / 1e6).toFixed(1) + ' MB';
-const VIDEO_STATE = { uploading: '上传中（还没传完）', received: '已收到，正在存入 R2', stored: '已存入 R2' };
+const FILE_STATE = { uploading: '上传中（还没传完）', received: '已收到，正在存入 R2', stored: '已存入 R2' };
+
+const fileCell = (f, none) => f ? esc(FILE_STATE[f.status] || f.status) + '<br><small>' + esc(f.name) + ' · ' + mb(f.size) + '</small>' : none;
 
 app.get('/admin', wrap(async (req, res) => {
   if (!ADMIN_KEY || !sameToken(ADMIN_KEY, req.query.key)) return res.status(404).send('Not found');
   const ws = await allWishes();
   const rows = ws.map((w, i) => `<tr><td>${i + 1}</td><td>${esc(w.name)}</td><td>${esc(new Date(w.createdAt).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' }))}</td>
-<td class="m">${esc(w.message)}</td><td>${w.video ? esc(VIDEO_STATE[w.video.status] || w.video.status) + '<br><small>' + esc(w.video.name) + ' · ' + mb(w.video.size) + '</small>' : '没有视频'}</td>
+<td class="m">${esc(w.message)}</td><td>${fileCell(w.cover, '没有封面')}</td><td>${fileCell(w.video, '没有视频')}</td>
 <td>${w.synced ? '是' : '还没有'}</td></tr>`).join('');
   res.type('html').send(`<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex">
 <title>已收到的祝福</title><style>body{font:14px/1.6 system-ui,sans-serif;margin:24px;color:#222}table{border-collapse:collapse;width:100%}
 td,th{border-bottom:1px solid #ddd;padding:8px;text-align:left;vertical-align:top}.m{white-space:pre-wrap;max-width:40em}small{color:#777}.w{overflow-x:auto}</style>
-<h1>已收到 ${ws.length} 份祝福</h1><p>视频存储：${storage.enabled ? 'Cloudflare R2（' + esc(storage.bucket) + '）' : '<b style="color:#b00">R2 未配置，文件只在这台服务器上</b>'}。时间为北京时间。</p>
-<div class="w"><table><tr><th>#</th><th>署名</th><th>时间</th><th>祝福</th><th>视频</th><th>文字已备份到 R2</th></tr>${rows}</table></div>`);
+<h1>已收到 ${ws.length} 份祝福</h1><p>文件存储：${storage.enabled ? 'Cloudflare R2（' + esc(storage.bucket) + '）' : '<b style="color:#b00">R2 未配置，文件只在这台服务器上</b>'}。时间为北京时间。</p>
+<div class="w"><table><tr><th>#</th><th>署名</th><th>时间</th><th>祝福</th><th>封面照片</th><th>视频</th><th>文字已备份到 R2</th></tr>${rows}</table></div>`);
 }));
 
 app.get('/healthz', (req, res) => res.json({ ok: true, r2: storage.enabled }));
@@ -248,21 +260,23 @@ async function syncAll() {
   for (const snapshot of await allWishes()) {
     const id = snapshot.id;
     try {
-      // Video first (slow, done outside the lock so chunk requests are never blocked).
-      if (snapshot.video?.status === 'received') {
-        const key = videoKey(snapshot);
-        await storage.putFile(key, incomingPath(id), snapshot.video.type || 'application/octet-stream');
+      // Files first (slow, done outside the lock so chunk requests are never blocked).
+      for (const kind of Object.keys(KINDS)) {
+        const f = snapshot[kind];
+        if (f?.status !== 'received') continue;
+        const key = fileKey(kind, snapshot), local = KINDS[kind].local(id);
+        await storage.putFile(key, local, f.type || 'application/octet-stream');
         const remote = await storage.size(key);
-        if (remote !== snapshot.video.size) throw new Error(`size mismatch for ${key}: remote ${remote}, expected ${snapshot.video.size}`);
+        if (remote !== f.size) throw new Error(`size mismatch for ${key}: remote ${remote}, expected ${f.size}`);
         await withWish(id, async () => {
           const w = await readWish(id);
-          if (w.video?.status !== 'received') return;
-          Object.assign(w.video, { status: 'stored', key, storedAt: new Date().toISOString() });
+          if (w[kind]?.status !== 'received') return;
+          Object.assign(w[kind], { status: 'stored', key, storedAt: new Date().toISOString() });
           w.synced = false;
           await writeWish(w);
         });
-        await fsp.rm(incomingPath(id), { force: true });
-        console.log(new Date().toISOString(), 'stored video', key);
+        await fsp.rm(local, { force: true });
+        console.log(new Date().toISOString(), 'stored', key);
       }
       // Then the record itself. Re-read under the lock so we upload exactly what we mark as synced.
       await withWish(id, async () => {

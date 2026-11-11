@@ -72,6 +72,20 @@ test('chunked upload resumes and ends byte-identical', async () => {
   assert.deepEqual(await (await post(url, meta, token)).json(), { offset: 300_000, done: true });
 });
 
+test('cover photo uses the same protocol, with its own size limit and file', async () => {
+  const clientId = crypto.randomUUID();
+  const { token } = await (await post('/api/wishes', { clientId, name: 'B', message: 'hi' })).json();
+  const img = crypto.randomBytes(50_000), url = `/api/wishes/${clientId}/cover`;
+  assert.equal((await post(url, { name: 'cover.jpg', size: 41 * 1024 ** 2, type: 'image/jpeg' }, token)).status, 413);
+  assert.deepEqual(await (await post(url, { name: 'cover.jpg', size: img.length, type: 'image/jpeg' }, token)).json(), { offset: 0 });
+  assert.deepEqual(await (await put(url + '?offset=0', img, token)).json(), { offset: 50_000, done: true });
+  assert.ok(img.equals(fs.readFileSync(path.join(data, 'incoming', clientId + '.cover'))));
+  const saved = JSON.parse(fs.readFileSync(path.join(data, 'wishes', clientId + '.json')));
+  assert.equal(saved.cover.status, 'received');
+  assert.equal(saved.video, null);
+  assert.equal((await post(`/api/wishes/${clientId}/other`, { name: 'x', size: 1 }, token)).status, 404);
+});
+
 test('admin page needs the key', async () => {
   assert.equal((await fetch(base + '/admin')).status, 404);
   assert.equal((await fetch(base + '/admin?key=nope')).status, 404);
