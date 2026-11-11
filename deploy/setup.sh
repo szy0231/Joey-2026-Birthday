@@ -70,6 +70,16 @@ CADDY
 systemctl enable caddy >/dev/null
 systemctl restart caddy
 
+# 以后更新只需要在服务器上输入：joey-update
+cat > /usr/local/bin/joey-update <<UPDATE
+#!/usr/bin/env bash
+set -euo pipefail
+cd "$APP"
+git pull --ff-only
+exec bash deploy/setup.sh "$DOMAIN"
+UPDATE
+chmod +x /usr/local/bin/joey-update
+
 sleep 2
 echo
 if curl -fsS http://127.0.0.1:3000/healthz; then echo; echo "服务已启动。"; else echo "服务没有启动，运行 journalctl -u joey -n 50 查看原因"; exit 1; fi
@@ -77,6 +87,7 @@ KEY="$(grep '^ADMIN_KEY=' .env | cut -d= -f2-)"
 echo
 echo "上传页：  https://$DOMAIN"
 echo "管理页：  https://$DOMAIN/admin?key=$KEY"
+echo "以后更新：输入 joey-update"
 if [ "${NEW_ENV:-}" = 1 ] || ! grep -q '^R2_ACCOUNT_ID=.\+' .env; then
   echo
   echo "还差一步：运行  nano $APP/.env  填入 R2 的三项密钥，保存后运行  systemctl restart joey"

@@ -55,7 +55,7 @@
 
 | 想做的事 | 命令 |
 |---|---|
-| 更新到最新代码 | `cd /opt/joey && git pull && bash deploy/setup.sh 你的域名` |
+| 更新到最新代码 | `joey-update`（第一次用之前先运行一遍 `cd /opt/joey && git pull && bash deploy/setup.sh 你的域名`） |
 | 看运行日志 | `journalctl -u joey -n 100` |
 | 重启 | `systemctl restart joey` |
 | 看谁寄了 | 打开 `https://你的域名/admin?key=…`（key 在 `.env` 的 `ADMIN_KEY`） |
