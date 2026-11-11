@@ -7,17 +7,17 @@
 <meta name="referrer" content="no-referrer">
 <meta name="theme-color" content="#3B0B19">
 <title>Dear Joey</title>
-<link rel="preload" href="/fonts/cormorant-500i.woff2?v=3" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/fonts/cormorant-500i.woff2?v=4" as="font" type="font/woff2" crossorigin>
 <style>
 /* Joey's page. A sealed envelope opens onto a ring of numbered wax seals, one per friend. Nothing about a
    friend shows until a seal is touched; then their postcard grows out of it as a soft rounded card.
    Fonts are self-hosted; the Chinese serif is subset to this file's own characters (scripts/subset-fonts.py),
    so anything a friend typed is set in system faces instead. */
-@font-face{font-family:"Cormorant Garamond";font-weight:500;font-style:normal;font-display:swap;src:url(/fonts/cormorant-500.woff2?v=3) format("woff2")}
-@font-face{font-family:"Cormorant Garamond";font-weight:500;font-style:italic;font-display:swap;src:url(/fonts/cormorant-500i.woff2?v=3) format("woff2")}
-@font-face{font-family:"Cormorant Garamond";font-weight:600;font-style:italic;font-display:swap;src:url(/fonts/cormorant-600i.woff2?v=3) format("woff2")}
-@font-face{font-family:"Noto Serif SC";font-weight:300;font-display:swap;src:url(/fonts/serif-latin-300.woff2?v=3) format("woff2");unicode-range:U+0000-024F}
-@font-face{font-family:"Noto Serif SC";font-weight:300;font-display:swap;src:url(/fonts/serif-sc-300.woff2?v=3) format("woff2");unicode-range:U+2000-FFFF}
+@font-face{font-family:"Cormorant Garamond";font-weight:500;font-style:normal;font-display:swap;src:url(/fonts/cormorant-500.woff2?v=4) format("woff2")}
+@font-face{font-family:"Cormorant Garamond";font-weight:500;font-style:italic;font-display:swap;src:url(/fonts/cormorant-500i.woff2?v=4) format("woff2")}
+@font-face{font-family:"Cormorant Garamond";font-weight:600;font-style:italic;font-display:swap;src:url(/fonts/cormorant-600i.woff2?v=4) format("woff2")}
+@font-face{font-family:"Noto Serif SC";font-weight:300;font-display:swap;src:url(/fonts/serif-latin-300.woff2?v=4) format("woff2");unicode-range:U+0000-024F}
+@font-face{font-family:"Noto Serif SC";font-weight:300;font-display:swap;src:url(/fonts/serif-sc-300.woff2?v=4) format("woff2");unicode-range:U+2000-FFFF}
 :root{
   --wine:#3B0B19; --wine-deep:#25060F; --wine-soft:#5C1B2C;
   --pearl:#F7ECE6; --pearl-dim:rgba(247,236,230,.62);
@@ -157,7 +157,22 @@ h1{margin:0;font:italic 500 clamp(56px,17vw,92px)/1 var(--f-latin);letter-spacin
 .modal .icon-btn{position:absolute;top:calc(12px + env(safe-area-inset-top,0px));right:max(16px,env(safe-area-inset-right,0px))}
 .modal .who{position:absolute;top:calc(24px + env(safe-area-inset-top,0px));left:max(20px,env(safe-area-inset-left,0px));font:400 17px/1.2 var(--f-hand);color:var(--gold-hi)}
 .modal .who i{font:italic 500 18px/1 var(--f-latin);margin-right:.4em}
-.modal video{max-width:100%;max-height:100%;min-height:0;border-radius:20px;background:#000;outline:0;animation:rise .6s var(--ease) backwards}
+.vbox{position:relative;width:min(100%,calc((100vh - 120px)*var(--ar,1.777)));border-radius:20px;overflow:hidden;background:#000;animation:rise .6s var(--ease) backwards}
+.vbox video{display:block;width:100%;aspect-ratio:var(--ar,1.777);background:#000;outline:0}
+/* shown instead of a frozen picture while the video is still arriving */
+.buf{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;text-align:center;
+  background:rgba(20,3,8,.55);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);animation:fade .3s ease both}
+.ring{position:relative;width:92px;height:92px;display:grid;place-items:center}
+.ring svg{position:absolute;inset:0;transform:rotate(-90deg)}
+.ring circle{fill:none;stroke-width:2}
+.ring .trk{stroke:var(--hair)}
+.ring .arc{stroke:var(--gold-hi);stroke-linecap:round;stroke-dasharray:213.6;stroke-dashoffset:213.6;transition:stroke-dashoffset .3s linear;filter:drop-shadow(0 0 4px rgba(244,226,194,.6))}
+.ring::after{content:"";position:absolute;inset:14px;border-radius:50%;border:1px solid var(--hair);border-top-color:var(--gold);animation:turn 1.4s linear infinite}
+@keyframes turn{to{transform:rotate(360deg)}}
+.ring b{font:500 24px/1 var(--f-latin);color:var(--gold-hi);font-variant-numeric:lining-nums tabular-nums}
+.buf p{margin:0;font-size:12px;letter-spacing:.3em;text-indent:.3em;color:var(--pearl-dim);min-height:1.8em}
+.skip{border:0;background:none;padding:8px 14px;font-size:12px;letter-spacing:.2em;color:var(--pearl-dim);text-decoration:underline;text-decoration-color:var(--hair);text-underline-offset:5px}
+.skip:active{color:var(--gold-hi)}
 
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
 </style>
@@ -190,7 +205,14 @@ h1{margin:0;font:italic 500 clamp(56px,17vw,92px)/1 var(--f-latin);letter-spacin
 <div class="modal" id="modal" hidden>
   <div class="who" id="modal-who"></div>
   <button class="icon-btn" id="modal-x" aria-label="关闭视频"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
-  <video id="player" controls playsinline preload="metadata"></video>
+  <div class="vbox" id="vbox">
+    <video id="player" playsinline preload="auto"></video>
+    <div class="buf" id="buf" hidden>
+      <div class="ring"><svg viewBox="0 0 80 80"><circle class="trk" cx="40" cy="40" r="34"/><circle class="arc" id="buf-arc" cx="40" cy="40" r="34"/></svg><b id="buf-pct">0</b></div>
+      <p id="buf-txt">正在准备视频</p>
+      <button class="skip" id="buf-skip">不等了，直接播</button>
+    </div>
+  </div>
 </div>
 <canvas id="foil"></canvas>
 
@@ -303,13 +325,14 @@ h1{margin:0;font:italic 500 clamp(56px,17vw,92px)/1 var(--f-latin);letter-spacin
       + (w.cover ? `<div class="top"><img alt="" src="${API}/cover/${w.id}" onload="this.classList.add('on')"></div>` : `<div class="top plain"><div class="mono">${esc([...w.name][0] || '')}</div></div>`)
       + `<p class="from"><i>from</i><b>${esc(w.name)}</b></p><div class="msg">${esc(w.message)}</div>`
       + (v ? (v.ready
-          ? `<button class="vthumb" id="play" aria-label="播放视频"${v.poster ? ` style="background-image:url(${API}/poster/${w.id})"` : ''}><span class="go">${PLAY}</span>${v.duration ? `<span class="dur">${clock(v.duration)}</span>` : ''}</button>`
+          ? `<button class="vthumb" id="play" aria-label="播放视频"${v.poster ? ` style="background-image:url(${v.poster})"` : ''}><span class="go">${PLAY}</span>${v.duration ? `<span class="dur">${clock(v.duration)}</span>` : ''}</button>`
           : '<p class="soon">视频还在路上，晚一点再来看</p>') : '')
       + '</div>';
     $('veil').classList.remove('closing'); $('veil').hidden = false;
     const c = card.getBoundingClientRect();                          // grow out of the seal that was touched
     card.style.setProperty('--ox', (b.left + b.width / 2 - c.left) + 'px'); card.style.setProperty('--oy', (b.top + b.height / 2 - c.top) + 'px');
     fx.pick(k); markRead(w.id); it.classList.add('read');
+    if (v && v.ready) prefer(w);                                     // start fetching this card's video right away
     $('veil-x').focus({ preventScroll: true });
   });
   function closeCard(){
@@ -320,17 +343,142 @@ h1{margin:0;font:italic 500 clamp(56px,17vw,92px)/1 var(--f-latin);letter-spacin
   $('veil-x').onclick = closeCard;
   $('veil').addEventListener('click', e => { if (e.target === $('veil')) closeCard(); });
 
-  /* ---------- video ---------- */
-  const player = $('player');
-  $('card').addEventListener('click', e => {
-    if (!e.target.closest('#play')) return;
-    const w = wishes[openK]; fx.tap();
+  /* ---------- video ----------
+     Two ways to play, chosen per tap:
+       ready     the whole file was already fetched in the background: it plays from memory, instantly.
+       streamed  it plays from the server, but only starts once enough is buffered that the rest will arrive
+                 before it is needed (worked out from the measured download speed and the video's bitrate).
+     Background fetching starts when the envelope opens, takes the opened card's video first, and stays within
+     a memory budget so a phone is never asked to hold more than it can. */
+  const player = $('player'), coarse = matchMedia('(pointer:coarse)').matches;
+  const BUDGET = coarse ? 400e6 : 1500e6, ONE = coarse ? 160e6 : 700e6;   // bytes kept in memory: in total, per video
+  const saver = !!(navigator.connection && navigator.connection.saveData);
+  const store = new Map();   // wish id -> { state: idle | loading | ready | failed, got, url, ctrl, done }
+  let used = 0, rate = 0, streaming = false, wanted = null, pumping = false, session = null;
+  const entry = id => { if (!store.has(id)) store.set(id, { state: 'idle', got: 0 }); return store.get(id); };
+  const sample = bps => { if (bps > 0 && isFinite(bps)) rate = rate ? rate * .6 + bps * .4 : bps; };   // bytes per second
+  const fits = w => !!w.video && w.video.ready && w.video.size <= ONE && used + w.video.size <= BUDGET;
+
+  function pull(w){
+    const e = entry(w.id); if (e.state === 'loading' || e.state === 'ready') return e.done;
+    e.state = 'loading'; e.got = 0; e.ctrl = new AbortController();
+    return e.done = (async () => {
+      try {
+        const r = await fetch(w.video.src, { signal: e.ctrl.signal }); if (!r.ok || !r.body) throw new Error('http ' + r.status);
+        const reader = r.body.getReader(), parts = []; let t = performance.now(), n = 0;
+        for (;;) {
+          const { done, value } = await reader.read(); if (done) break;
+          parts.push(value); e.got += value.length; n += value.length;
+          const now = performance.now();
+          if (now - t > 700) { sample(n / ((now - t) / 1000)); t = now; n = 0; }
+        }
+        e.url = URL.createObjectURL(new Blob(parts, { type: 'video/mp4' })); e.state = 'ready'; used += e.got;
+      } catch (err) { e.state = e.ctrl.signal.aborted ? 'idle' : 'failed'; e.got = 0; }
+    })();
+  }
+  const stopPulls = keep => store.forEach((e, id) => { if (e.state === 'loading' && id !== keep) e.ctrl.abort(); });
+  async function pump(){
+    if (pumping || saver) return; pumping = true;
+    for (;;) {
+      if (streaming) { await new Promise(r => setTimeout(r, 400)); continue; }
+      const next = [wanted, ...wishes].find(w => w && fits(w) && entry(w.id).state === 'idle');
+      if (!next) break;
+      await pull(next);
+    }
+    pumping = false;
+  }
+  function prefer(w){
+    wanted = w;
+    const e = entry(w.id);
+    if (e.state === 'idle' && fits(w)) store.forEach((o, id) => { if (o.state === 'loading' && id !== w.id && o.got < .7 * (wishes.find(x => x.id === id).video.size)) o.ctrl.abort(); });
+    pump();
+  }
+
+  // loading ring
+  function buf(frac, text){
+    $('buf').hidden = false; player.controls = false;
+    const f = Math.max(0, Math.min(1, frac || 0));
+    $('buf-arc').style.strokeDashoffset = 213.6 * (1 - f); $('buf-pct').textContent = Math.round(f * 100);
+    $('buf-txt').textContent = text || '正在准备视频';
+  }
+  const unbuf = () => { $('buf').hidden = true; player.controls = true; };
+  const eta = s => (s > 1.5 && isFinite(s) ? '还要大约 ' + Math.ceil(s) + ' 秒' : '马上就好');
+  const bufferedEnd = t => { const b = player.buffered; for (let i = 0; i < b.length; i++) if (b.start(i) <= t + .15 && b.end(i) >= t) return b.end(i); return t; };
+
+  function playNow(url){
+    unbuf(); player.volume = 1; player.src = url;
+    const p = player.play(); if (p && p.catch) p.catch(() => {});   // if the browser wants a tap, its own play button is showing
+  }
+  function waitForFetch(w, e, ses){
+    buf(e.got / w.video.size);
+    ses.timer = setInterval(() => {
+      if (e.state === 'ready') { clearInterval(ses.timer); playNow(e.url); }
+      else if (e.state !== 'loading') { clearInterval(ses.timer); stream(w, ses); }
+      else buf(e.got / w.video.size, eta((w.video.size - e.got) / (rate || 1)));
+    }, 200);
+    ses.skip = () => { clearInterval(ses.timer); stream(w, ses, true); };
+  }
+  function stream(w, ses, noHold){
+    const v = w.video, bps = v.duration ? v.size / v.duration : 0;
+    streaming = true; stopPulls();                                  // the whole connection goes to this video
+    let hold = !noHold, lastEnd = 0, lastT = performance.now(), grew = lastT, sr = rate, first = true;
+    const go = () => {
+      hold = false; unbuf(); player.volume = 1;
+      if (first && player.currentTime < .4) { try { player.currentTime = 0; } catch (e) {} } first = false;
+      const p = player.play(); if (p && p.catch) p.catch(() => {});
+    };
+    ses.skip = go;
+    player.onplaying = () => { if (hold) player.pause(); };
+    player.onwaiting = () => {                                       // ran dry mid-play: buffer again rather than freeze
+      clearTimeout(ses.stall);
+      ses.stall = setTimeout(() => { if (!hold && !player.paused && player.readyState < 3) { hold = true; player.pause(); buf(0, '正在缓冲'); } }, 700);
+    };
+    if (hold) { buf(0); player.volume = 0; } else unbuf();
+    player.src = v.src;
+    const p = player.play(); if (p && p.catch) p.catch(() => { hold = false; unbuf(); });
+    ses.timer = setInterval(() => {
+      const now = performance.now(), t = player.currentTime, end = bufferedEnd(t), dur = isFinite(player.duration) && player.duration ? player.duration : v.duration;
+      if (end > lastEnd + .01) {
+        if (lastEnd && bps && end - lastEnd < 30) { const inst = (end - lastEnd) * bps / ((now - lastT) / 1000); sr = sr ? sr * .6 + inst * .4 : inst; sample(inst); }
+        lastEnd = end; lastT = now; grew = now;
+      }
+      if (!hold) return;
+      const left = Math.max(0, dur - t), ahead = Math.max(0, end - t);
+      // seconds that must be in hand so the download finishes before playback catches up with it
+      let need = sr && bps ? left * (1 - sr / bps) * 1.15 + 1.5 : 3; need = Math.min(Math.max(need, 1.5), left || 1.5);
+      const whole = dur && end >= dur - .25, capped = now - grew > 3500 && ahead > 1;   // capped: the browser will not buffer further
+      if (whole || ahead >= need || capped) go();
+      else buf(ahead / need, sr && bps ? eta((need - ahead) / (sr / bps)) : '正在缓冲');
+    }, 200);
+  }
+  function openVideo(w){
+    const v = w.video, e = entry(w.id), bps = v.duration ? v.size / v.duration : 0;
+    const ses = session = { w };
     $('modal-who').innerHTML = '<i>from</i>' + esc(w.name);
-    if (w.video.poster) player.poster = API + '/poster/' + w.id; else player.removeAttribute('poster');
-    player.src = API + '/video/' + w.id; $('modal').hidden = false;
-    const p = player.play(); if (p && p.catch) p.catch(() => {});
-  });
-  function closeVideo(){ if ($('modal').hidden) return; fx.close(); player.pause(); player.removeAttribute('src'); player.load(); $('modal').hidden = true; }
+    $('vbox').style.setProperty('--ar', v.width && v.height ? (v.width / v.height).toFixed(4) : '1.7778');
+    if (v.poster) player.poster = v.poster; else player.removeAttribute('poster');
+    $('modal').hidden = false;
+    player.onerror = () => {                                         // a file played from memory failed: play it from the server
+      if (session !== ses) return;
+      if (player.src.startsWith('blob:')) { clearInterval(ses.timer); stream(w, ses); }
+      else { clearInterval(ses.timer); buf(0, '这段视频打不开'); $('buf-skip').hidden = true; }
+    };
+    $('buf-skip').hidden = false;
+    if (e.state === 'ready') return playNow(e.url);
+    const streamWait = rate && bps ? Math.max(0, v.duration * (bps / rate - 1)) : 0, fetchWait = rate ? (v.size - e.got) / rate : Infinity;
+    if (e.state === 'loading' && fetchWait <= streamWait + 3) return waitForFetch(w, e, ses);   // nearly there: finish, then play from memory
+    stream(w, ses);
+  }
+  function closeVideo(){
+    if ($('modal').hidden) return;
+    fx.close(); const ses = session; session = null;
+    if (ses) { clearInterval(ses.timer); clearTimeout(ses.stall); }
+    player.onplaying = player.onwaiting = player.onerror = null;
+    player.pause(); player.removeAttribute('src'); player.load(); $('buf').hidden = true; $('modal').hidden = true;
+    streaming = false; pump();
+  }
+  $('card').addEventListener('click', e => { if (e.target.closest('#play')) { fx.tap(); openVideo(wishes[openK]); } });
+  $('buf-skip').onclick = () => { if (session && session.skip) session.skip(); };
   $('modal-x').onclick = closeVideo;
   $('modal').addEventListener('click', e => { if (e.target === $('modal')) closeVideo(); });
   addEventListener('keydown', e => { if (e.key !== 'Escape') return; if (!$('modal').hidden) closeVideo(); else closeCard(); });
@@ -343,6 +491,7 @@ h1{margin:0;font:italic 500 clamp(56px,17vw,92px)/1 var(--f-latin);letter-spacin
     setTimeout(() => {
       $('intro').hidden = true; $('scene').hidden = false; build();
       wishes.forEach((w, i) => { if (w.cover) setTimeout(() => { new Image().src = API + '/cover/' + w.id; }, 1500 + i * 250); }); // warm the photos
+      setTimeout(pump, 1200);                                        // and start bringing the videos over
     }, reduce ? 0 : 1600);
   };
   $('snd').onclick = () => {

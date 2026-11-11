@@ -86,6 +86,24 @@ test('cover photo uses the same protocol, with its own size limit and file', asy
   assert.equal((await post(`/api/wishes/${clientId}/other`, { name: 'x', size: 1 }, token)).status, 404);
 });
 
+test('admin can delete a wish and every local file that belongs to it', async () => {
+  const clientId = crypto.randomUUID(), keep = crypto.randomUUID();
+  const { token } = await (await post('/api/wishes', { clientId, name: '要删的', message: 'x' })).json();
+  await post('/api/wishes', { clientId: keep, name: '留下的', message: 'y' });
+  const img = crypto.randomBytes(1000);
+  await post(`/api/wishes/${clientId}/cover`, { name: 'cover.jpg', size: img.length, type: 'image/jpeg' }, token);
+  await put(`/api/wishes/${clientId}/cover?offset=0`, img, token);
+  const mine = () => fs.readdirSync(data, { recursive: true }).filter(f => String(f).includes(clientId));
+  assert.equal(mine().length, 2);                                              // the record and the cover
+  assert.equal((await fetch(`${base}/admin/delete/${clientId}`, { method: 'POST' })).status, 404);          // no key
+  assert.equal((await fetch(`${base}/admin/delete/${clientId}?key=nope`, { method: 'POST' })).status, 404);
+  assert.equal(mine().length, 2);
+  assert.equal((await fetch(`${base}/admin/delete/${clientId}?key=secret`, { method: 'POST' })).status, 200);
+  assert.equal(mine().length, 0);
+  assert.ok(fs.existsSync(path.join(data, 'wishes', keep + '.json')));         // others untouched
+  assert.equal((await post(`/api/wishes/${clientId}/cover`, { name: 'cover.jpg', size: 10 }, token)).status, 404);
+});
+
 test('admin page needs the key', async () => {
   assert.equal((await fetch(base + '/admin')).status, 404);
   assert.equal((await fetch(base + '/admin?key=nope')).status, 404);

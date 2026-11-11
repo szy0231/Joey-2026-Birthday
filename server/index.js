@@ -8,8 +8,9 @@
 //      verifies the remote size. A local file is deleted only after that check passes.
 //   4. On boot the worker rescans every wish, so a crash or reboot never strands a file.
 //
-// Viewing: each video is also converted once to a browser-ready 1080p MP4 (data/play/, copied to R2 under
-// play/). Joey's page is served only under a secret path and reads covers and videos from this server.
+// Viewing: each video also gets one browser-ready copy at its original resolution and frame rate (see media.js),
+// kept in data/play/ and backed up to R2 under play/. Joey's page is served only under a secret path; in
+// production Caddy serves the files in data/play/ itself, straight from disk.
 import express from 'express';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
@@ -17,7 +18,7 @@ import fsp from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { makeStorage } from './storage.js';
-import { transcode } from './media.js';
+import { prepare } from './media.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 loadEnv(path.join(ROOT, '.env'));
@@ -95,6 +96,8 @@ const extOf = (kind, name) => {
   return e && KINDS[kind].exts.has(e.toLowerCase()) ? e.toLowerCase() : KINDS[kind].fallback;
 };
 const fileKey = (kind, w) => `${KINDS[kind].prefix}/${w.id}.${extOf(kind, w[kind].name)}`;
+
+const log = (...a) => console.log(new Date().toISOString(), ...a);
 
 /* ---------- app ---------- */
 const app = express();
@@ -226,25 +229,103 @@ const FILE_STATE = { uploading: '上传中（还没传完）', received: '已收
 
 const fileCell = (f, none) => f ? esc(FILE_STATE[f.status] || f.status) + '<br><small>' + esc(f.name) + ' · ' + mb(f.size) + '</small>' : none;
 
+// ---- which playable copy a video has ----
+const RULE = 2;   // bump when media.js changes what it produces: every video is then prepared again
+const playDone = v => v?.play?.status === 'done';
+const playCurrent = v => playDone(v) && v.play.rule === RULE;
+const gaveUp = v => v?.playFail?.rule === RULE && v.playFail.attempts >= 2;
+const settled = v => playCurrent(v) || gaveUp(v);
+const playFile = (id, v) => v.play.file || id;          // files made before RULE 2 were named by id alone
+
+const dims = p => `${p.width}×${p.height} · ${p.fps ? Math.round(p.fps) + ' 帧' : ''}`;
 const playCell = v => {
   if (!v || v.status === 'uploading') return '';
-  const p = v.play;
-  if (p?.status === 'done') return `<br><small>播放版：已生成 · ${p.width}×${p.height} · ${mb(p.size)}${storage.enabled ? (p.synced ? ' · 已备份' : ' · 备份中') : ''}</small>`;
-  if (p?.status === 'failed' && p.attempts >= 2) return '<br><small style="color:#b00">播放版：生成失败，Joey 会看到原片</small>';
-  return '<br><small>播放版：生成中</small>';
+  const p = v.play, out = [];
+  if (p?.from) out.push(`原片：${esc(p.from.codec.toUpperCase())}${p.from.hdr ? ' HDR' : ''} · ${dims(p.from)} · ${p.from.mbps} Mb/s`);
+  if (playCurrent(v)) {
+    const mbps = p.duration ? p.size * 8 / p.duration / 1e6 : 0;
+    out.push(`播放版：${p.mode === 'direct' ? '直接用原片画面（未重新编码）' : '已转成 H.264'} · ${dims(p)} · ${mb(p.size)} · <span class="rate" data-mbps="${mbps.toFixed(2)}" data-dur="${p.duration.toFixed(1)}">${mbps.toFixed(1)} Mb/s</span>${storage.enabled ? (p.synced ? ' · 已备份' : ' · 备份中') : ''}`);
+  } else if (gaveUp(v)) out.push('<span style="color:#b00">播放版：生成失败，Joey 会看到' + (playDone(v) ? '旧的播放版' : '原片') + '</span>');
+  else out.push('播放版：' + (playDone(v) ? '正在按新规则重新生成（期间 Joey 看到旧版）' : '生成中'));
+  return out.map(t => '<br><small>' + t + '</small>').join('');
 };
 
-app.get('/admin', wrap(async (req, res) => {
-  if (!ADMIN_KEY || !sameToken(ADMIN_KEY, req.query.key)) return res.status(404).send('Not found');
+const admin = (req, res, next) => (ADMIN_KEY && sameToken(ADMIN_KEY, req.query.key) ? next() : res.status(404).send('Not found'));
+
+app.get('/admin', admin, wrap(async (req, res) => {
   const ws = await allWishes();
-  const rows = ws.map((w, i) => `<tr><td>${i + 1}</td><td>${esc(w.name)}</td><td>${esc(new Date(w.createdAt).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' }))}</td>
+  const rows = ws.map((w, i) => `<tr data-id="${w.id}"><td>${i + 1}</td><td>${esc(w.name)}</td><td>${esc(new Date(w.createdAt).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' }))}</td>
 <td class="m">${esc(w.message)}</td><td>${fileCell(w.cover, '没有封面')}</td><td>${fileCell(w.video, '没有视频')}${playCell(w.video)}</td>
-<td>${w.synced ? '是' : '还没有'}</td></tr>`).join('');
-  res.type('html').send(`<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex">
+<td>${w.synced ? '是' : '还没有'}</td><td class="del"><button class="ask">删除</button><span hidden>确定删除 ${esc(w.name)} 的这条？删了找不回来。<br><button class="yes">确定删除</button> <button class="no">取消</button></span></td></tr>`).join('');
+  res.set('Cache-Control', 'no-store').type('html').send(`<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex">
 <title>已收到的祝福</title><style>body{font:14px/1.6 system-ui,sans-serif;margin:24px;color:#222}table{border-collapse:collapse;width:100%}
-td,th{border-bottom:1px solid #ddd;padding:8px;text-align:left;vertical-align:top}.m{white-space:pre-wrap;max-width:40em}small{color:#777}.w{overflow-x:auto}</style>
+td,th{border-bottom:1px solid #ddd;padding:8px;text-align:left;vertical-align:top}.m{white-space:pre-wrap;max-width:36em}small{color:#777}.w{overflow-x:auto}
+button{font:inherit;padding:4px 12px;border:1px solid #bbb;border-radius:6px;background:#fff;cursor:pointer}button:disabled{opacity:.5}
+.yes{border-color:#b00;background:#b00;color:#fff}.del{min-width:9em}.del span{color:#b00}.box{background:#f6f3f0;border-radius:8px;padding:12px 16px;margin:12px 0}.wait{color:#b00}</style>
 <h1>已收到 ${ws.length} 份祝福</h1>${VIEW_KEY ? `<p><a href="/for-joey/${esc(VIEW_KEY)}">打开 Joey 会看到的页面</a>（这个网址只给 Joey）</p>` : ''}<p>文件存储：${storage.enabled ? 'Cloudflare R2（' + esc(storage.bucket) + '）' : '<b style="color:#b00">R2 未配置，文件只在这台服务器上</b>'}。时间为北京时间。</p>
-<div class="w"><table><tr><th>#</th><th>署名</th><th>时间</th><th>祝福</th><th>封面照片</th><th>视频</th><th>文字已备份到 R2</th></tr>${rows}</table></div>`);
+<div class="box"><button id="speed">测一下网速</button> <span id="speed-out">从这台服务器下载到你现在这台设备的速度。在 Joey 会用的网络上测最有参考价值。</span></div>
+<div class="w"><table><tr><th>#</th><th>署名</th><th>时间</th><th>祝福</th><th>封面照片</th><th>视频</th><th>文字已备份到 R2</th><th></th></tr>${rows}</table></div>
+<script>
+const key = new URLSearchParams(location.search).get('key');
+document.querySelector('table').addEventListener('click', async e => {
+  const td = e.target.closest('.del'); if (!td) return;
+  const ask = td.querySelector('.ask'), box = td.querySelector('span');
+  if (e.target.matches('.ask')) { ask.hidden = true; box.hidden = false; }
+  if (e.target.matches('.no')) { ask.hidden = false; box.hidden = true; }
+  if (e.target.matches('.yes')) {
+    e.target.disabled = true; e.target.textContent = '正在删除…';
+    const r = await fetch('/admin/delete/' + td.parentElement.dataset.id + '?key=' + encodeURIComponent(key), { method: 'POST' }).catch(() => null);
+    if (r && r.ok) td.parentElement.remove();
+    else { box.innerHTML = '没删成：' + (r ? (await r.json().catch(() => ({}))).error || r.status : '网络错误') + '。刷新页面再试。'; }
+  }
+});
+document.getElementById('speed').onclick = async e => {
+  const out = document.getElementById('speed-out'); e.target.disabled = true; out.textContent = '测速中…';
+  try {
+    const t0 = performance.now(), r = await fetch('/admin/speed?mb=24&key=' + encodeURIComponent(key), { cache: 'no-store' });
+    const reader = r.body.getReader(); let n = 0, tFirst = 0;
+    for (;;) { const { done, value } = await reader.read(); if (done) break; if (!tFirst) tFirst = performance.now(); n += value.length; }
+    const mbps = n * 8 / ((performance.now() - tFirst) / 1000) / 1e6;
+    out.textContent = '下载速度约 ' + mbps.toFixed(1) + ' Mb/s（' + (n / 1e6).toFixed(0) + ' MB 用了 ' + ((performance.now() - t0) / 1000).toFixed(1) + ' 秒）。下面每个视频后面标出了按这个速度开播前大约要等多久。';
+    document.querySelectorAll('.rate').forEach(el => {
+      const b = +el.dataset.mbps, d = +el.dataset.dur, wait = Math.max(0, d * (b / mbps - 1));
+      el.insertAdjacentHTML('afterend', wait < 1 ? ' · 可以边下边播' : ' · <span class="wait">边下边播来不及，开播前约等 ' + Math.ceil(wait) + ' 秒（后台预加载好了就不用等）</span>');
+    });
+  } catch (err) { out.textContent = '测速失败：' + err.message; }
+  e.target.disabled = false;
+};
+</script>`);
+}));
+
+// Incompressible bytes for the speed test.
+const NOISE = crypto.randomBytes(1 << 20);
+app.get('/admin/speed', admin, (req, res) => {
+  let left = Math.min(Math.max(Number(req.query.mb) || 8, 1), 64);
+  res.set({ 'Content-Type': 'application/octet-stream', 'Content-Length': left * NOISE.length, 'Cache-Control': 'no-store' });
+  (function send() { while (left-- > 0) { if (!res.write(NOISE)) return res.once('drain', send); } res.end(); })();
+});
+
+// Remove one wish everywhere: the R2 copies first (so a failure leaves something to retry), then local files.
+const gone = new Set();   // ids deleted while a background job may still be holding them
+async function purge(id) {
+  if (storage.enabled) {
+    for (const prefix of ['wishes/', 'originals/', 'covers/', 'play/']) {
+      for (const key of await storage.list(prefix + id)) await storage.remove(key);
+    }
+  }
+  await fsp.rm(wishPath(id), { force: true });
+  await fsp.rm(KINDS.video.local(id), { force: true });
+  await fsp.rm(KINDS.cover.local(id), { force: true });
+  await fsp.rm(path.join(COVERS, id), { force: true });
+  for (const f of await fsp.readdir(PLAY)) if (f.startsWith(id)) await fsp.rm(path.join(PLAY, f), { force: true });
+}
+app.post('/admin/delete/:id', admin, wrap(async (req, res) => {
+  const id = req.params.id;
+  if (!ID_RE.test(id)) return fail(res, 404, 'not_found');
+  gone.add(id);
+  await withWish(id, () => purge(id));
+  log('deleted', id);
+  res.json({ ok: true });
 }));
 
 /* ---------- Joey's page ---------- */
@@ -256,9 +337,10 @@ async function localOrFetch(file, key) {
   await storage.getFile(key, file);
   return file;
 }
-const playable = v => !!v && v.status !== 'uploading' && (v.play?.status === 'done' || (v.play?.status === 'failed' && v.play.attempts >= 2));
+const playable = v => !!v && v.status !== 'uploading' && (playDone(v) || gaveUp(v));
 const viewer = (req, res, next) => (VIEW_KEY && sameToken(VIEW_KEY, req.params.key) ? next() : res.status(404).send('Not found'));
 const media = { headers: { 'Cache-Control': 'private, max-age=86400' } };
+const forever = { headers: { 'Cache-Control': 'private, max-age=31536000, immutable' } };
 
 app.get('/for-joey/:key', viewer, (req, res) => {
   res.set({ 'Cache-Control': 'no-cache', 'Referrer-Policy': 'no-referrer', 'X-Robots-Tag': 'noindex' });
@@ -271,10 +353,26 @@ app.get('/api/view/:key/wishes', viewer, wrap(async (req, res) => {
   res.set('Cache-Control', 'no-store').json(ws.map(w => ({
     id: w.id, name: w.name, message: w.message,
     cover: !!w.cover && w.cover.status !== 'uploading',
-    video: w.video && w.video.status !== 'uploading'
-      ? { ready: playable(w.video), duration: w.video.play?.duration || 0, width: w.video.play?.width || 0, height: w.video.play?.height || 0, poster: w.video.play?.status === 'done' }
-      : null,
+    video: w.video && w.video.status !== 'uploading' ? videoView(w) : null,
   })));
+}));
+// Prepared files have a name that changes whenever they are remade, so browsers may keep them forever.
+function videoView(w) {
+  const v = w.video, p = v.play;
+  if (playDone(v)) {
+    const base = `/media/${VIEW_KEY}/${playFile(w.id, v)}`;
+    return { ready: true, src: base + '.mp4', poster: base + '.jpg', duration: p.duration, width: p.width, height: p.height, size: p.size };
+  }
+  if (gaveUp(v)) return { ready: true, src: `/api/view/${VIEW_KEY}/video/${w.id}`, poster: null, duration: 0, width: 0, height: 0, size: v.size };
+  return { ready: false };
+}
+// Caddy answers /media/<key>/<file> itself when the file is on disk. This route covers local development and
+// the case where a file has to be brought back from R2 first.
+app.get('/media/:key/:file', viewer, wrap(async (req, res) => {
+  const f = req.params.file;
+  if (!/^[0-9a-f-]{36}(-[0-9a-z]+)?\.(mp4|jpg)$/.test(f)) return fail(res, 404, 'not_found');
+  const file = await localOrFetch(path.join(PLAY, f), 'play/' + f).catch(() => null);
+  file ? res.type(f.endsWith('.mp4') ? 'video/mp4' : 'image/jpeg').sendFile(file, forever) : fail(res, 404, 'not_found');
 }));
 const viewWish = wrap(async (req, res, next) => {
   req.wish = await readWish(req.params.id);
@@ -287,19 +385,12 @@ app.get('/api/view/:key/cover/:id', viewer, viewWish, wrap(async (req, res) => {
   if (!file) return fail(res, 404, 'no_cover');
   res.type(c.type && c.type.startsWith('image/') ? c.type : 'image/jpeg').sendFile(file, media);
 }));
-app.get('/api/view/:key/poster/:id', viewer, viewWish, wrap(async (req, res) => {
-  if (req.wish.video?.play?.status !== 'done') return fail(res, 404, 'no_poster');
-  const file = await localOrFetch(path.join(PLAY, req.wish.id + '.jpg'), `play/${req.wish.id}.jpg`);
-  file ? res.type('image/jpeg').sendFile(file, media) : fail(res, 404, 'no_poster');
-}));
+// Only used when no playable copy could be made: hand over what the friend sent.
 app.get('/api/view/:key/video/:id', viewer, viewWish, wrap(async (req, res) => {
   const w = req.wish, v = w.video;
-  if (!playable(v)) return fail(res, 404, 'not_ready');
-  const file = v.play.status === 'done'
-    ? await localOrFetch(path.join(PLAY, w.id + '.mp4'), `play/${w.id}.mp4`)
-    : await localOrFetch(KINDS.video.local(w.id), v.key);            // conversion failed: fall back to what was sent
-  if (!file) return fail(res, 404, 'not_ready');
-  res.type(v.play.status === 'done' ? 'video/mp4' : (v.type || 'video/mp4')).sendFile(file, media); // sendFile answers Range requests
+  if (!v || v.status === 'uploading') return fail(res, 404, 'not_ready');
+  const file = await localOrFetch(KINDS.video.local(w.id), v.key);
+  file ? res.type(v.type || 'video/mp4').sendFile(file, media) : fail(res, 404, 'not_ready'); // sendFile answers Range requests
 }));
 
 app.get('/healthz', (req, res) => res.json({ ok: true, r2: storage.enabled }));
@@ -329,13 +420,15 @@ function queue(job, label) {
     });
   };
 }
-const log = (...a) => console.log(new Date().toISOString(), ...a);
-// The uploaded original may leave this disk only once R2 holds it and the playable copy exists (or cannot be made).
+// The uploaded original may leave this disk only once R2 holds it and its playable copy is settled.
 async function tidy(id) {
   const w = await readWish(id), v = w?.video;
-  if (v?.status === 'stored' && (v.play?.status === 'done' || (v.play?.status === 'failed' && v.play.attempts >= 2))) {
-    await fsp.rm(KINDS.video.local(id), { force: true });
-  }
+  if (v?.status === 'stored' && settled(v)) await fsp.rm(KINDS.video.local(id), { force: true });
+}
+// Keep only the current playable copy of a video, here and in R2.
+async function dropOldPlay(id, keep) {
+  for (const f of await fsp.readdir(PLAY)) if (f.startsWith(id) && !f.startsWith(keep + '.')) await fsp.rm(path.join(PLAY, f), { force: true });
+  if (storage.enabled) for (const key of await storage.list('play/' + id)) if (!key.startsWith(`play/${keep}.`)) await storage.remove(key);
 }
 
 let retryTimer = null;
@@ -355,7 +448,7 @@ const kick = queue(async () => {
         if (remote !== f.size) throw new Error(`size mismatch for ${key}: remote ${remote}, expected ${f.size}`);
         await withWish(id, async () => {
           const w = await readWish(id);
-          if (w[kind]?.status !== 'received') return;
+          if (w?.[kind]?.status !== 'received') return;
           Object.assign(w[kind], { status: 'stored', key, storedAt: new Date().toISOString() });
           w.synced = false;
           await writeWish(w);
@@ -363,19 +456,21 @@ const kick = queue(async () => {
         if (kind === 'cover') await fsp.rename(local, path.join(COVERS, id)); // stays here for Joey's page
         log('stored', key);
       }
-      // The browser-ready video and its poster.
-      if (snapshot.video?.play?.status === 'done' && !snapshot.video.play.synced) {
+      // The playable copy and its poster.
+      if (playDone(snapshot.video) && !snapshot.video.play.synced) {
+        const file = playFile(id, snapshot.video);
         for (const [ext, type] of [['mp4', 'video/mp4'], ['jpg', 'image/jpeg']]) {
-          const key = `play/${id}.${ext}`, local = path.join(PLAY, `${id}.${ext}`);
+          const key = `play/${file}.${ext}`, local = path.join(PLAY, `${file}.${ext}`);
           await storage.putFile(key, local, type);
           const want = (await fsp.stat(local)).size, remote = await storage.size(key);
           if (remote !== want) throw new Error(`size mismatch for ${key}: remote ${remote}, expected ${want}`);
         }
-        await withWish(id, async () => {
+        const kept = await withWish(id, async () => {
           const w = await readWish(id);
-          if (w.video?.play?.status === 'done') { w.video.play.synced = true; w.synced = false; await writeWish(w); }
+          if (!playDone(w?.video) || playFile(id, w.video) !== file) return false;
+          w.video.play.synced = true; w.synced = false; await writeWish(w); return true;
         });
-        log('stored', `play/${id}.mp4`);
+        if (kept) { await dropOldPlay(id, file); log('stored', `play/${file}.mp4`); }
       }
       await tidy(id);
       // Then the record itself. Re-read under the lock so we upload exactly what we mark as synced.
@@ -388,42 +483,52 @@ const kick = queue(async () => {
         await writeWish(w);
       });
     } catch (e) {
-      failed = true;
-      console.error(new Date().toISOString(), 'sync error for', id, e.message);
+      if (!gone.has(id)) { failed = true; console.error(new Date().toISOString(), 'sync error for', id, e.message); }
     }
+    if (gone.has(id)) await purge(id).catch(() => {});   // deleted while we were copying it: clean up again
   }
   clearTimeout(retryTimer);
   if (failed) retryTimer = setTimeout(kick, 60_000);
 }, 'sync');
 
-/* ---------- background conversion to a browser-ready video ---------- */
+/* ---------- background preparation of the playable copy ---------- */
 // Separate from the R2 queue on purpose: a slow conversion must never delay getting an original into R2.
 const kickPlay = queue(async () => {
   for (const snapshot of await allWishes()) {
     const id = snapshot.id, v = snapshot.video;
-    if (!v || v.status === 'uploading' || v.play?.status === 'done' || (v.play?.status === 'failed' && v.play.attempts >= 2)) continue;
-    let play;
+    if (!v || v.status === 'uploading' || settled(v) || gone.has(id)) continue;
+    const file = `${id}-${Date.now().toString(36)}`;
+    let play = null, error = null;
     try {
       const src = await localOrFetch(KINDS.video.local(id), v.key);
       if (!src) throw new Error('original not found');
       const t0 = Date.now();
-      const out = await transcode(src, path.join(PLAY, id + '.mp4'), path.join(PLAY, id + '.jpg'));
-      play = { status: 'done', ...out, synced: false, at: new Date().toISOString() };
-      log('converted', id, `${out.width}x${out.height}`, mb(v.size), '->', mb(out.size), `in ${Math.round((Date.now() - t0) / 1000)}s`);
+      const out = await prepare(src, path.join(PLAY, file + '.mp4'), path.join(PLAY, file + '.jpg'));
+      play = { status: 'done', rule: RULE, file, ...out, synced: false, at: new Date().toISOString() };
+      log(out.mode, id, `${out.width}x${out.height}@${Math.round(out.fps)}`, mb(v.size), '->', mb(out.size), `in ${Math.round((Date.now() - t0) / 1000)}s`);
     } catch (e) {
-      play = { status: 'failed', attempts: (v.play?.attempts || 0) + 1, error: String(e.message).slice(0, 500) };
-      console.error(new Date().toISOString(), 'conversion error for', id, e.message);
+      error = String(e.message).slice(0, 500);
+      console.error(new Date().toISOString(), 'could not prepare', id, error);
     }
-    await withWish(id, async () => {
+    const saved = await withWish(id, async () => {
       const w = await readWish(id);
-      if (!w?.video || w.video.size !== v.size || w.video.name !== v.name) return; // replaced meanwhile
-      w.video.play = play; w.synced = false;
+      if (!w?.video || w.video.size !== v.size || w.video.name !== v.name) return false; // deleted or replaced meanwhile
+      if (play) { w.video.play = play; delete w.video.playFail; }
+      else w.video.playFail = { rule: RULE, attempts: (w.video.playFail?.rule === RULE ? w.video.playFail.attempts : 0) + 1, error };
+      w.synced = false;
       await writeWish(w);
+      return true;
     });
+    if (!saved || gone.has(id)) { await purgeOrphans(id, file); continue; }
+    if (play && !storage.enabled) await dropOldPlay(id, file);   // with R2 on, the sync queue does this once the new copy is safe
     await tidy(id);
     kick();
   }
-}, 'conversion');
+}, 'prepare');
+async function purgeOrphans(id, file) {
+  if (gone.has(id)) return purge(id).catch(() => {});
+  for (const ext of ['mp4', 'jpg']) await fsp.rm(path.join(PLAY, `${file}.${ext}`), { force: true });
+}
 
 const server = app.listen(PORT, '127.0.0.1', () => {
   console.log(`listening on 127.0.0.1:${PORT} · data in ${DATA} · R2 ${storage.enabled ? 'on (' + storage.bucket + ')' : 'OFF (local only)'}`);

@@ -1,7 +1,7 @@
 // Cloudflare R2 (S3-compatible). If the R2_* variables are missing, storage is disabled and files stay on local disk.
 import fs from 'node:fs';
 import { pipeline } from 'node:stream/promises';
-import { S3Client, GetObjectCommand, HeadObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, DeleteObjectCommand, GetObjectCommand, HeadObjectCommand, ListObjectsV2Command, PutObjectCommand } from '@aws-sdk/client-s3';
 import { Upload } from '@aws-sdk/lib-storage';
 
 export function makeStorage(env) {
@@ -35,6 +35,19 @@ export function makeStorage(env) {
       const r = await s3.send(new GetObjectCommand({ Bucket: R2_BUCKET, Key: key }));
       await pipeline(r.Body, fs.createWriteStream(file + '.part'));
       await fs.promises.rename(file + '.part', file);
+    },
+    // Every key that starts with `prefix`.
+    async list(prefix) {
+      const keys = []; let token;
+      do {
+        const r = await s3.send(new ListObjectsV2Command({ Bucket: R2_BUCKET, Prefix: prefix, ContinuationToken: token }));
+        for (const o of r.Contents || []) keys.push(o.Key);
+        token = r.IsTruncated ? r.NextContinuationToken : undefined;
+      } while (token);
+      return keys;
+    },
+    async remove(key) {
+      await s3.send(new DeleteObjectCommand({ Bucket: R2_BUCKET, Key: key }));
     },
     async size(key) {
       return (await s3.send(new HeadObjectCommand({ Bucket: R2_BUCKET, Key: key }))).ContentLength;

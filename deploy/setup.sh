@@ -8,6 +8,8 @@ DOMAIN="${1:?用法: bash deploy/setup.sh 你的域名（例如 dearjoey.com）}
 APP="$(cd "$(dirname "$0")/.." && pwd)"
 [ "$(id -u)" = 0 ] || { echo "请用 root 运行（前面加 sudo）"; exit 1; }
 export DEBIAN_FRONTEND=noninteractive
+# 目录属于 joey 用户而 git 由 root 运行，不加这一句 git 会拒绝操作
+git config --global --get-all safe.directory | grep -qxF "$APP" || git config --global --add safe.directory "$APP"
 
 echo "==> 安装系统软件"
 apt-get update -y
@@ -59,8 +61,53 @@ systemctl daemon-reload
 systemctl enable joey >/dev/null
 systemctl restart joey
 
+echo "==> 网络调优（BBR 拥塞控制：跨境、有丢包的线路上下载明显更快）"
+if modprobe tcp_bbr 2>/dev/null; then
+  printf 'net.core.default_qdisc=fq\nnet.ipv4.tcp_congestion_control=bbr\n' > /etc/sysctl.d/60-joey-bbr.conf
+  sysctl -q --system || true
+fi
+echo "    当前拥塞控制：$(sysctl -n net.ipv4.tcp_congestion_control 2>/dev/null || echo 未知)"
+
 echo "==> 配置 HTTPS（证书由 Caddy 自动申请和续期）"
-cat > /etc/caddy/Caddyfile <<CADDY
+VIEW_KEY="$(grep '^VIEW_KEY=' .env | cut -d= -f2-)"
+chmod o+rx "$APP" "$APP/data"; mkdir -p "$APP/data/play"; chown joey:joey "$APP/data/play"; chmod o+rx "$APP/data/play"
+# 视频和视频封面由 Caddy 直接从硬盘发出（支持分段请求），不经过 Node；文件不在硬盘上时才转给 Node。
+# 关闭 HTTP/3：它走 UDP，跨境线路上常被限速，视频反而更卡。
+cat > /etc/caddy/Caddyfile.new <<CADDY
+{
+	servers {
+		protocols h1 h2
+	}
+}
+$DOMAIN {
+	encode zstd gzip
+	request_body {
+		max_size 20MB
+	}
+	handle_path /media/$VIEW_KEY/* {
+		root * $APP/data/play
+		@ondisk file
+		handle @ondisk {
+			header Cache-Control "private, max-age=31536000, immutable"
+			file_server
+		}
+		handle {
+			rewrite * /media/$VIEW_KEY{uri}
+			reverse_proxy 127.0.0.1:3000
+		}
+	}
+	handle {
+		reverse_proxy 127.0.0.1:3000
+	}
+}
+CADDY
+if caddy validate --adapter caddyfile --config /etc/caddy/Caddyfile.new >/dev/null 2>&1; then
+  mv /etc/caddy/Caddyfile.new /etc/caddy/Caddyfile
+else
+  echo "    新的 Caddy 配置没通过检查，改用简单配置（视频经 Node 发出，功能不受影响）。请把下面的报错发给我："
+  caddy validate --adapter caddyfile --config /etc/caddy/Caddyfile.new 2>&1 | tail -5 || true
+  rm -f /etc/caddy/Caddyfile.new
+  cat > /etc/caddy/Caddyfile <<CADDY
 $DOMAIN {
 	encode zstd gzip
 	request_body {
@@ -69,6 +116,7 @@ $DOMAIN {
 	reverse_proxy 127.0.0.1:3000
 }
 CADDY
+fi
 systemctl enable caddy >/dev/null
 systemctl restart caddy
 
@@ -77,7 +125,7 @@ cat > /usr/local/bin/joey-update <<UPDATE
 #!/usr/bin/env bash
 set -euo pipefail
 cd "$APP"
-git pull --ff-only
+git -c safe.directory="$APP" pull --ff-only
 exec bash deploy/setup.sh "$DOMAIN"
 UPDATE
 chmod +x /usr/local/bin/joey-update
