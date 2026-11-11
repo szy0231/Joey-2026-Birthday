@@ -1,0 +1,397 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<meta name="referrer" content="no-referrer">
+<meta name="theme-color" content="#3B0B19">
+<title>Dear Joey</title>
+<link rel="preload" href="/fonts/cormorant-500i.woff2?v=3" as="font" type="font/woff2" crossorigin>
+<style>
+/* Joey's page. A sealed envelope opens onto a ring of numbered wax seals, one per friend. Nothing about a
+   friend shows until a seal is touched; then their postcard grows out of it as a soft rounded card.
+   Fonts are self-hosted; the Chinese serif is subset to this file's own characters (scripts/subset-fonts.py),
+   so anything a friend typed is set in system faces instead. */
+@font-face{font-family:"Cormorant Garamond";font-weight:500;font-style:normal;font-display:swap;src:url(/fonts/cormorant-500.woff2?v=3) format("woff2")}
+@font-face{font-family:"Cormorant Garamond";font-weight:500;font-style:italic;font-display:swap;src:url(/fonts/cormorant-500i.woff2?v=3) format("woff2")}
+@font-face{font-family:"Cormorant Garamond";font-weight:600;font-style:italic;font-display:swap;src:url(/fonts/cormorant-600i.woff2?v=3) format("woff2")}
+@font-face{font-family:"Noto Serif SC";font-weight:300;font-display:swap;src:url(/fonts/serif-latin-300.woff2?v=3) format("woff2");unicode-range:U+0000-024F}
+@font-face{font-family:"Noto Serif SC";font-weight:300;font-display:swap;src:url(/fonts/serif-sc-300.woff2?v=3) format("woff2");unicode-range:U+2000-FFFF}
+:root{
+  --wine:#3B0B19; --wine-deep:#25060F; --wine-soft:#5C1B2C;
+  --pearl:#F7ECE6; --pearl-dim:rgba(247,236,230,.62);
+  --gold:#D8B98C; --gold-hi:#F4E2C2; --gold-lo:#A8804D;
+  --paper:#FBF4EF; --ink:#4A1423; --hair:rgba(216,185,140,.32);
+  --foil:linear-gradient(135deg,var(--gold-hi),var(--gold) 45%,var(--gold-lo));
+  --f-latin:"Cormorant Garamond","Songti SC",serif;
+  --f-serif:"Noto Serif SC","Songti SC","STSong",serif;
+  --f-body:system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+  --f-hand:"Kaiti SC","STKaiti","KaiTi","Songti SC","STSong",serif;
+  --ease:cubic-bezier(.22,.8,.22,1);
+  color-scheme:dark;
+  padding:env(safe-area-inset-top,0px) 0 env(safe-area-inset-bottom,0px);
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+[hidden]{display:none!important}
+html,body{height:100%}
+body{
+  margin:0;background:radial-gradient(120% 75% at 50% 0%,var(--wine-soft),var(--wine) 55%,var(--wine-deep)) fixed,var(--wine);
+  color:var(--pearl);font:400 15px/1.8 var(--f-body);overflow:hidden;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+  -webkit-font-smoothing:antialiased;
+}
+body::after{content:"";position:fixed;inset:0;pointer-events:none;opacity:.10;mix-blend-mode:overlay;z-index:1;
+  background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E")}
+#dust,#foil{position:fixed;inset:0;width:100%;height:100%;pointer-events:none}
+#dust{z-index:0}#foil{z-index:40}
+button{font:inherit;color:inherit;cursor:pointer;touch-action:manipulation}
+:focus-visible{outline:1px solid var(--gold-hi);outline-offset:4px}
+.foil-text{background:var(--foil);-webkit-background-clip:text;background-clip:text;color:transparent}
+@keyframes rise{from{opacity:0;transform:translateY(18px);filter:blur(6px)}}
+@keyframes out{to{opacity:0;transform:translateY(-10px)}}
+@keyframes fade{from{opacity:0}}
+
+.shell{position:relative;z-index:2;height:100%;max-width:1040px;margin:0 auto;display:flex;flex-direction:column;padding-block:12px}
+.icon-btn{width:44px;height:44px;border-radius:50%;border:1px solid var(--hair);background:transparent;display:grid;place-items:center;flex:none;
+  transition:transform .18s var(--ease),background .25s,border-color .25s}
+.icon-btn:hover{border-color:var(--gold)}
+.icon-btn:active{transform:scale(.88);background:rgba(216,185,140,.16)}
+.icon-btn svg{width:18px;height:18px;stroke:var(--gold);fill:none;stroke-width:1.4;stroke-linecap:round;stroke-linejoin:round}
+.hint{margin:0;font-size:12px;letter-spacing:.4em;text-indent:.4em;color:var(--gold);text-align:center}
+
+/* ---------- intro ---------- */
+#intro{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:30px;text-align:center}
+#intro>*{animation:rise .9s var(--ease) backwards}
+#intro>*:nth-child(2){animation-delay:.12s}#intro>*:nth-child(3){animation-delay:.24s}#intro>*:nth-child(4){animation-delay:.36s}
+#intro.leave{animation:out .5s ease-in both}
+h1{margin:0;font:italic 500 clamp(56px,17vw,92px)/1 var(--f-latin);letter-spacing:-.01em;padding:0 .08em .06em}
+.lead{margin:0;font:300 clamp(17px,4.6vw,20px)/1.7 var(--f-serif);letter-spacing:.3em;text-indent:.3em;min-height:1.7em}
+.lead b{font:500 1.25em/1 var(--f-latin);letter-spacing:.05em;font-variant-numeric:lining-nums;color:var(--gold-hi);margin-right:.3em}
+.env{position:relative;width:250px;height:166px;margin-top:clamp(40px,8vh,70px);perspective:800px;filter:drop-shadow(0 34px 30px rgba(0,0,0,.5));border:0;background:none;padding:0;transition:transform .4s var(--ease)}
+.env:hover{transform:translateY(-4px)}
+.env:active{transform:scale(.97)}
+.env i{position:absolute;inset:0;border-radius:3px}
+.env .bk{background:linear-gradient(180deg,var(--wine-soft) 0 58%,#EFE1D8 58%)}
+.env .cd{left:18px;right:18px;top:8px;bottom:auto;height:142px;background:var(--paper);border-radius:2px;transition:transform 1s cubic-bezier(.3,0,.2,1)}
+.env .pk{background:linear-gradient(180deg,#EADBD1,#FBF4EF);clip-path:polygon(0 0,50% 58%,100% 0,100% 100%,0 100%)}
+.env .fl{height:60%;bottom:auto;background:linear-gradient(180deg,#F6EBE4,#E6D5CA);clip-path:polygon(0 0,100% 0,50% 100%);transform-origin:50% 0;transition:transform .7s cubic-bezier(.5,0,.2,1),background .3s .25s}
+.env .seal{position:absolute;left:50%;top:58%;width:60px;height:60px;margin:-30px 0 0 -30px;border-radius:50%;
+  background:radial-gradient(circle at 34% 28%,var(--gold-hi),var(--gold) 45%,var(--gold-lo));color:var(--wine);display:grid;place-items:center;font:italic 600 32px/1 var(--f-latin);
+  box-shadow:0 4px 10px rgba(0,0,0,.35),inset 0 0 0 4px rgba(168,128,77,.35),inset 0 1px 0 rgba(255,255,255,.6);
+  animation:beat 2.6s ease-in-out infinite;transition:transform .35s cubic-bezier(.6,-.4,.7,.3),opacity .3s}
+@keyframes beat{0%,100%{box-shadow:0 4px 10px rgba(0,0,0,.35),inset 0 0 0 4px rgba(168,128,77,.35),inset 0 1px 0 rgba(255,255,255,.6),0 0 0 0 rgba(244,226,194,.5)}
+  60%{box-shadow:0 4px 10px rgba(0,0,0,.35),inset 0 0 0 4px rgba(168,128,77,.35),inset 0 1px 0 rgba(255,255,255,.6),0 0 0 18px rgba(244,226,194,0)}}
+.env.open .seal{transform:scale(0) rotate(40deg);opacity:0;animation:none}
+.env.open .fl{transform:rotateX(180deg);background:#7A2A3F;z-index:-1}
+.env.open .cd{transform:translateY(-120px)}
+.retry{border:1px solid var(--hair);background:transparent;border-radius:999px;padding:10px 26px;letter-spacing:.2em;font-size:13px;transition:transform .2s var(--ease),background .2s}
+.retry:active{transform:scale(.95);background:rgba(216,185,140,.16)}
+
+/* ---------- the ring of seals ---------- */
+#scene{flex:1;display:flex;flex-direction:column;min-height:0;animation:rise 1s var(--ease) backwards}
+.bar{display:flex;align-items:center;justify-content:flex-end;height:48px}
+.field{position:relative;flex:1;min-height:0}
+.center{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);text-align:center;pointer-events:none;display:flex;flex-direction:column;align-items:center;gap:.2em;transition:opacity .5s;white-space:nowrap}
+.center b{font:italic 500 var(--cf,44px)/1 var(--f-latin);padding:0 .08em .08em}
+.center span{font:300 13px/1.6 var(--f-serif);letter-spacing:.36em;text-indent:.36em;color:var(--pearl-dim)}
+.center span i{font:500 1.3em/1 var(--f-latin);font-style:normal;letter-spacing:.06em;color:var(--gold);font-variant-numeric:lining-nums;margin-right:.3em}
+.item{position:absolute;left:var(--x);top:var(--y);width:var(--s);height:var(--s);margin:calc(var(--s)/-2) 0 0 calc(var(--s)/-2);
+  border:0;background:none;padding:0;border-radius:50%;transition:left .6s var(--ease),top .6s var(--ease),width .6s var(--ease),height .6s var(--ease);
+  animation:pop .8s cubic-bezier(.3,1.4,.5,1) var(--in) backwards}
+@keyframes pop{from{opacity:0;transform:scale(.2)}}
+.bob{display:block;width:100%;height:100%;animation:bob var(--d) ease-in-out var(--dl) infinite alternate}
+@keyframes bob{from{transform:translateY(-3px) rotate(-2deg)}to{transform:translateY(3px) rotate(2deg)}}
+.wseal{position:relative;display:grid;place-items:center;width:100%;height:100%;transition:transform .45s var(--ease)}
+.wseal::before{content:"";position:absolute;inset:6%;border-radius:var(--blob);transform:rotate(var(--turn));
+  background:radial-gradient(circle at 34% 28%,var(--gold-hi),var(--gold) 45%,var(--gold-lo));
+  box-shadow:0 8px 14px -6px rgba(0,0,0,.6),inset 0 0 0 calc(var(--s)*.055) rgba(168,128,77,.35),inset 0 1px 0 rgba(255,255,255,.6);transition:background 1s,box-shadow 1s}
+.wseal span{position:relative;font:500 calc(var(--s)*.34)/1 var(--f-latin);font-variant-numeric:lining-nums;letter-spacing:.02em;
+  color:rgba(92,45,10,.4);text-shadow:0 1px 0 rgba(255,255,255,.38);transition:color 1s,text-shadow 1s}
+.item:hover .wseal,.item:focus-visible .wseal{transform:scale(1.14)}
+.item:active .wseal{transform:scale(.9)}
+.read .wseal::before{background:radial-gradient(circle at 34% 28%,#f6d3da,#d4879c 45%,#8f3f5a);
+  box-shadow:0 8px 14px -6px rgba(0,0,0,.6),inset 0 0 0 calc(var(--s)*.055) rgba(120,40,70,.35),inset 0 1px 0 rgba(255,255,255,.5)}
+.read .wseal span{color:rgba(255,255,255,.55);text-shadow:none}
+/* the only thing known before opening: a name, and only on hover */
+.tag{position:absolute;left:50%;top:calc(100% + 2px);transform:translate(-50%,-6px);white-space:nowrap;pointer-events:none;opacity:0;z-index:5;
+  background:var(--pearl);color:var(--wine);padding:3px 14px;border-radius:999px;font:400 14px/1.7 var(--f-hand);letter-spacing:.06em;
+  box-shadow:0 10px 20px -8px rgba(0,0,0,.7);transition:opacity .25s,transform .35s var(--ease)}
+.tag i{font:italic 500 14px/1 var(--f-latin);color:var(--gold-lo);margin-right:.4em}
+@media (hover:hover){.item:hover{z-index:4}.item:hover .tag,.item:focus-visible .tag{opacity:1;transform:translate(-50%,0)}}
+
+/* ---------- the postcard ---------- */
+.veil{position:fixed;inset:0;z-index:30;background:rgba(37,6,15,.82);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;
+  padding:calc(16px + env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) calc(16px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));
+  animation:fade .35s ease both}
+.veil.closing{animation:out .28s ease-in both}
+.card{width:min(100%,360px);max-height:calc(100% - 64px);display:flex;overflow:hidden;
+  background:linear-gradient(180deg,#FFFAF6,var(--paper));color:var(--ink);border-radius:40px;
+  box-shadow:0 50px 80px -30px rgba(0,0,0,.85),0 16px 30px -14px rgba(0,0,0,.6);
+  transform-origin:var(--ox,50%) var(--oy,50%);animation:bloom .7s cubic-bezier(.2,.9,.25,1.05) both}
+@keyframes bloom{from{opacity:0;transform:scale(.2)}}
+.scroll{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:12px 12px 26px;display:flex;flex-direction:column;gap:16px;
+  scrollbar-width:thin;scrollbar-color:rgba(168,128,77,.4) transparent}
+.top{flex:none;width:100%;aspect-ratio:4/5;border-radius:28px;overflow:hidden;background:linear-gradient(160deg,#f1e2d9,#e4cfc4)}
+.top img{display:block;width:100%;height:100%;object-fit:cover;opacity:0;transition:opacity .6s}
+.top img.on{opacity:1}
+.top.plain{aspect-ratio:auto;height:150px;display:grid;place-items:center;background:radial-gradient(circle at 50% 60%,rgba(216,185,140,.22),transparent 70%)}
+.mono{width:104px;height:104px;border-radius:50%;border:1px solid rgba(168,128,77,.5);display:grid;place-items:center;font:400 44px/1 var(--f-hand);color:var(--gold-lo)}
+.from{margin:0;padding:0 16px;display:flex;align-items:baseline;gap:.5em;justify-content:center;text-align:center}
+.from i{font:italic 500 18px/1 var(--f-latin);color:var(--gold-lo)}
+.from b{font:400 23px/1.4 var(--f-hand);letter-spacing:.06em;overflow-wrap:anywhere}
+.msg{padding:0 16px;font:400 17px/1.95 var(--f-hand);white-space:pre-wrap;overflow-wrap:anywhere}
+.vthumb{position:relative;flex:none;margin:0 4px;aspect-ratio:16/10;border:0;padding:0;border-radius:24px;overflow:hidden;background:var(--wine) center/cover;display:grid;place-items:center;
+  box-shadow:0 14px 24px -14px rgba(37,6,15,.9);transition:transform .25s var(--ease)}
+.vthumb::before{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(37,6,15,.15),rgba(37,6,15,.55))}
+.vthumb:active{transform:scale(.97)}
+.vthumb .go{position:relative;width:60px;height:60px;border-radius:50%;border:1px solid rgba(247,236,230,.85);display:grid;place-items:center;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);transition:transform .3s var(--ease)}
+.vthumb:hover .go{transform:scale(1.08)}
+.vthumb .go svg{width:16px;height:16px;fill:var(--pearl);margin-left:3px}
+.vthumb .dur{position:absolute;right:16px;bottom:10px;font:500 15px/1 var(--f-latin);letter-spacing:.1em;color:var(--pearl);font-variant-numeric:lining-nums}
+.soon{margin:0;text-align:center;font-size:12px;letter-spacing:.2em;color:rgba(74,20,35,.5)}
+
+.modal{position:fixed;inset:0;z-index:35;background:rgba(14,2,6,.96);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;
+  padding:calc(68px + env(safe-area-inset-top,0px)) 16px calc(20px + env(safe-area-inset-bottom,0px));animation:fade .3s ease both}
+.modal .icon-btn{position:absolute;top:calc(12px + env(safe-area-inset-top,0px));right:max(16px,env(safe-area-inset-right,0px))}
+.modal .who{position:absolute;top:calc(24px + env(safe-area-inset-top,0px));left:max(20px,env(safe-area-inset-left,0px));font:400 17px/1.2 var(--f-hand);color:var(--gold-hi)}
+.modal .who i{font:italic 500 18px/1 var(--f-latin);margin-right:.4em}
+.modal video{max-width:100%;max-height:100%;min-height:0;border-radius:20px;background:#000;outline:0;animation:rise .6s var(--ease) backwards}
+
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
+</style>
+</head>
+<body>
+<canvas id="dust"></canvas>
+<div class="shell">
+  <section id="intro">
+    <h1 class="foil-text">Dear Joey</h1>
+    <p class="lead" id="lead"></p>
+    <button class="env" id="env" aria-label="拆开信封" hidden><i class="bk"></i><i class="cd"></i><i class="pk"></i><i class="fl"></i><span class="seal">J</span></button>
+    <p class="hint" id="open-hint" hidden>轻点火漆 拆开</p>
+    <button class="retry" id="retry" hidden>再试一次</button>
+  </section>
+
+  <section id="scene" hidden>
+    <header class="bar">
+      <button class="icon-btn" id="snd" aria-label="关闭声音" aria-pressed="true"><svg viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path id="snd-wave" d="M17 8.5a5 5 0 010 7"/></svg></button>
+    </header>
+    <div class="field" id="field">
+      <div class="center" id="center"><b class="foil-text">Dear Joey</b><span><i id="center-n"></i>封明信片</span></div>
+    </div>
+  </section>
+</div>
+
+<div class="veil" id="veil" hidden>
+  <article class="card" id="card"></article>
+  <button class="icon-btn" id="veil-x" aria-label="关闭"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+</div>
+<div class="modal" id="modal" hidden>
+  <div class="who" id="modal-who"></div>
+  <button class="icon-btn" id="modal-x" aria-label="关闭视频"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+  <video id="player" controls playsinline preload="metadata"></video>
+</div>
+<canvas id="foil"></canvas>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const API = '/api/view/' + encodeURIComponent(location.pathname.split('/')[2] || '');
+  document.addEventListener('touchstart', () => {}, {passive:true}); // enables :active on iOS
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const clock = s => Math.floor(s / 60) + ':' + String(Math.round(s % 60)).padStart(2, '0');
+
+  let wishes = [], read = new Set();
+  try { read = new Set(JSON.parse(localStorage.getItem('joey-read') || '[]')); } catch (e) {}
+  const markRead = id => { read.add(id); try { localStorage.setItem('joey-read', JSON.stringify([...read])); } catch (e) {} };
+
+  /* ---------- sound + haptics ---------- */
+  let ac, sound = true;
+  function tone(f0, f1, dur, type, vol, delay = 0){
+    if (!sound) return;
+    try {
+      ac = ac || new (window.AudioContext || window.webkitAudioContext)();
+      if (ac.state === 'suspended') ac.resume();
+      const t = ac.currentTime + delay, o = ac.createOscillator(), g = ac.createGain();
+      o.type = type; o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(f1, t + dur);
+      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + .012); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      o.connect(g).connect(ac.destination); o.start(t); o.stop(t + dur + .02);
+    } catch (e) {}
+  }
+  const buzz = ms => { try { navigator.vibrate && navigator.vibrate(ms); } catch (e) {} };
+  const SCALE = [523, 587, 659, 784, 880, 1047, 1175, 1319];
+  const fx = {
+    tap(){ tone(880, 1320, .16, 'sine', .035); buzz(8); },
+    hover(k){ const f = SCALE[k % SCALE.length]; tone(f, f, .5, 'sine', .018); },   // every seal has its own note
+    pick(k){ const f = SCALE[k % SCALE.length]; tone(130, 60, .18, 'triangle', .14); tone(f, f, .9, 'sine', .05, .05); tone(f * 1.5, f * 1.5, 1.1, 'sine', .03, .14); buzz(12); },
+    close(){ tone(520, 380, .14, 'sine', .03); buzz(5); },
+    open(){ tone(130, 50, .24, 'triangle', .26); [659,784,988,1319].forEach((f,i) => tone(f, f, .9, 'sine', .04, .2 + i*.11)); buzz(30); }
+  };
+
+  /* ---------- loading ---------- */
+  async function load(){
+    $('retry').hidden = true; $('lead').textContent = '';
+    try {
+      const r = await fetch(API + '/wishes', { cache: 'no-store' });
+      if (!r.ok) throw new Error(r.status);
+      wishes = await r.json();
+    } catch (e) {
+      $('lead').textContent = '没连上，再试一次'; $('retry').hidden = false; return;
+    }
+    if (!wishes.length) { $('lead').textContent = '明信片还在路上'; return; }
+    $('lead').innerHTML = '<b>' + wishes.length + '</b>位朋友给你寄了明信片';
+    $('center-n').textContent = wishes.length;
+    $('env').hidden = false; $('open-hint').hidden = false;
+  }
+  $('retry').onclick = () => { fx.tap(); load(); };
+
+  /* ---------- the ring ----------
+     Seals sit on a circle, numbered clockwise from the top. When one circle cannot hold them at a comfortable
+     size, a second (then third) circle forms inside it. The middle stays clear for the title while it can. */
+  const field = $('field'), BLOBS = ['47% 53% 51% 49%/52% 47% 53% 48%', '52% 48% 47% 53%/49% 53% 47% 51%', '49% 51% 54% 46%/47% 52% 48% 53%', '53% 47% 49% 51%/51% 48% 52% 49%'];
+  function plan(n, W, H){
+    const R = Math.min(W, H) / 2 - 6;
+    for (const clear of [62, 0]) {
+      for (let s = Math.min(96, R * .5); s >= 40; s -= 2) {
+        const rings = []; let cap = 0;
+        for (let r = R - s / 2; r - s / 2 >= clear && cap < n; r -= s * 1.16) {
+          const c = Math.max(1, Math.floor(2 * Math.PI * r / (s * 1.2))); rings.push({ r, c }); cap += c;
+        }
+        if (cap >= n) return { s, rings, cap, clear: clear > 0 };
+      }
+    }
+    return { s: 40, rings: [{ r: R - 20, c: n }], cap: n, clear: false };
+  }
+  function layout(){
+    const n = wishes.length, W = field.clientWidth, H = field.clientHeight; if (!n || !W || !H) return;
+    const { s, rings, cap, clear } = plan(n, W, H);
+    // share the seals between circles in proportion to what each can hold
+    let left = n; const counts = rings.map((g, j) => { const c = j === rings.length - 1 ? left : Math.min(left, Math.round(n * g.c / cap)); left -= c; return c; });
+    let k = 0;
+    rings.forEach((g, j) => {
+      for (let i = 0; i < counts[j]; i++, k++) {
+        const a = -Math.PI / 2 + (i + (j % 2) * .5) * 2 * Math.PI / counts[j], el = field.children[k + 1];
+        el.style.setProperty('--x', (W / 2 + g.r * Math.cos(a)).toFixed(1) + 'px');
+        el.style.setProperty('--y', (H / 2 + g.r * Math.sin(a)).toFixed(1) + 'px');
+        el.style.setProperty('--s', s + 'px');
+      }
+    });
+    const inner = rings[rings.length - 1].r - s / 2;
+    $('center').style.opacity = clear ? 1 : 0;
+    $('center').style.setProperty('--cf', Math.max(26, Math.min(64, inner * .42)) + 'px');
+  }
+  function build(){
+    field.querySelectorAll('.item').forEach(el => el.remove());
+    field.insertAdjacentHTML('beforeend', wishes.map((w, k) =>
+      `<button class="item${read.has(w.id) ? ' read' : ''}" data-k="${k}" aria-label="第 ${k + 1} 封明信片"
+        style="--in:${(.25 + k * .06).toFixed(2)}s;--d:${(3 + (k * 7 % 5) * .5).toFixed(1)}s;--dl:${(-(k * 3 % 7) * .6).toFixed(1)}s;--blob:${BLOBS[k % BLOBS.length]};--turn:${(k * 47) % 360}deg">
+        <span class="bob"><span class="wseal"><span>${k + 1}</span></span></span><span class="tag"><i>from</i>${esc(w.name)}</span></button>`).join(''));
+    layout();
+  }
+  let rz; addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(layout, 150); });
+
+  /* ---------- opening a postcard ---------- */
+  const PLAY = '<svg viewBox="0 0 12 14"><path d="M0 0l12 7-12 7z"/></svg>';
+  let openK = -1;
+  field.addEventListener('pointerover', e => { const it = e.target.closest('.item'); if (it && e.pointerType === 'mouse' && !it.contains(e.relatedTarget)) fx.hover(+it.dataset.k); });
+  field.addEventListener('click', e => {
+    const it = e.target.closest('.item'); if (!it) return;
+    const k = openK = +it.dataset.k, w = wishes[k], card = $('card'), b = it.getBoundingClientRect(), v = w.video;
+    card.innerHTML = '<div class="scroll">'
+      + (w.cover ? `<div class="top"><img alt="" src="${API}/cover/${w.id}" onload="this.classList.add('on')"></div>` : `<div class="top plain"><div class="mono">${esc([...w.name][0] || '')}</div></div>`)
+      + `<p class="from"><i>from</i><b>${esc(w.name)}</b></p><div class="msg">${esc(w.message)}</div>`
+      + (v ? (v.ready
+          ? `<button class="vthumb" id="play" aria-label="播放视频"${v.poster ? ` style="background-image:url(${API}/poster/${w.id})"` : ''}><span class="go">${PLAY}</span>${v.duration ? `<span class="dur">${clock(v.duration)}</span>` : ''}</button>`
+          : '<p class="soon">视频还在路上，晚一点再来看</p>') : '')
+      + '</div>';
+    $('veil').classList.remove('closing'); $('veil').hidden = false;
+    const c = card.getBoundingClientRect();                          // grow out of the seal that was touched
+    card.style.setProperty('--ox', (b.left + b.width / 2 - c.left) + 'px'); card.style.setProperty('--oy', (b.top + b.height / 2 - c.top) + 'px');
+    fx.pick(k); markRead(w.id); it.classList.add('read');
+    $('veil-x').focus({ preventScroll: true });
+  });
+  function closeCard(){
+    if ($('veil').hidden || $('veil').classList.contains('closing')) return;
+    fx.close(); $('veil').classList.add('closing');
+    setTimeout(() => { $('veil').hidden = true; $('card').innerHTML = ''; const it = field.querySelector(`[data-k="${openK}"]`); if (it) it.focus({ preventScroll: true }); }, reduce ? 0 : 260);
+  }
+  $('veil-x').onclick = closeCard;
+  $('veil').addEventListener('click', e => { if (e.target === $('veil')) closeCard(); });
+
+  /* ---------- video ---------- */
+  const player = $('player');
+  $('card').addEventListener('click', e => {
+    if (!e.target.closest('#play')) return;
+    const w = wishes[openK]; fx.tap();
+    $('modal-who').innerHTML = '<i>from</i>' + esc(w.name);
+    if (w.video.poster) player.poster = API + '/poster/' + w.id; else player.removeAttribute('poster');
+    player.src = API + '/video/' + w.id; $('modal').hidden = false;
+    const p = player.play(); if (p && p.catch) p.catch(() => {});
+  });
+  function closeVideo(){ if ($('modal').hidden) return; fx.close(); player.pause(); player.removeAttribute('src'); player.load(); $('modal').hidden = true; }
+  $('modal-x').onclick = closeVideo;
+  $('modal').addEventListener('click', e => { if (e.target === $('modal')) closeVideo(); });
+  addEventListener('keydown', e => { if (e.key !== 'Escape') return; if (!$('modal').hidden) closeVideo(); else closeCard(); });
+
+  /* ---------- opening the envelope ---------- */
+  $('env').onclick = () => {
+    if ($('env').classList.contains('open')) return;
+    $('env').classList.add('open'); fx.open(); foil();
+    setTimeout(() => $('intro').classList.add('leave'), reduce ? 0 : 1100);
+    setTimeout(() => {
+      $('intro').hidden = true; $('scene').hidden = false; build();
+      wishes.forEach((w, i) => { if (w.cover) setTimeout(() => { new Image().src = API + '/cover/' + w.id; }, 1500 + i * 250); }); // warm the photos
+    }, reduce ? 0 : 1600);
+  };
+  $('snd').onclick = () => {
+    sound = !sound;
+    $('snd').setAttribute('aria-pressed', sound); $('snd').setAttribute('aria-label', sound ? '关闭声音' : '打开声音');
+    $('snd-wave').setAttribute('d', sound ? 'M17 8.5a5 5 0 010 7' : 'M17 9.5l4 5M21 9.5l-4 5'); fx.tap();
+  };
+
+  /* ---------- ambient dust + foil shower ---------- */
+  if (!reduce) (() => {
+    const c = $('dust'), x = c.getContext('2d'); let W, H, dpr;
+    const size = () => { dpr = Math.min(devicePixelRatio || 1, 2); W = c.width = innerWidth * dpr; H = c.height = innerHeight * dpr; };
+    size(); addEventListener('resize', size);
+    const ps = Array.from({length: 30}, () => ({ x: Math.random(), y: Math.random(), r: .6 + Math.random() * 1.4, v: .00012 + Math.random() * .00028, p: Math.random() * 6.28, d: (Math.random() - .5) * .0002 }));
+    (function frame(t){
+      x.clearRect(0, 0, W, H);
+      ps.forEach(p => {
+        p.y -= p.v; p.x += p.d; if (p.y < -.02) { p.y = 1.02; p.x = Math.random(); }
+        x.globalAlpha = .1 + .26 * (0.5 + 0.5 * Math.sin(t / 1400 + p.p));
+        x.fillStyle = '#F4E2C2'; x.beginPath(); x.arc(p.x * W, p.y * H, p.r * dpr, 0, 6.3); x.fill();
+      });
+      requestAnimationFrame(frame);
+    })(0);
+  })();
+  function foil(){
+    if (reduce) return;
+    const c = $('foil'), x = c.getContext('2d'), dpr = Math.min(devicePixelRatio || 1, 2);
+    const W = c.width = innerWidth * dpr, H = c.height = innerHeight * dpr;
+    const cols = ['#F4E2C2','#D8B98C','#A8804D','#F7ECE6','#E9B7C0'];
+    const ps = Array.from({length: 100}, (_, i) => {
+      const a = -Math.PI/2 + (Math.random() - .5) * 2.4, v = (4 + Math.random() * 11) * dpr;
+      return { x: W/2, y: H*.5, vx: Math.cos(a)*v, vy: Math.sin(a)*v, s: (3 + Math.random()*6) * dpr, r: Math.random()*6, vr: (Math.random()-.5)*.3, w: Math.random()*6.28, c: cols[i % cols.length] };
+    });
+    let n = 0; const life = 240;
+    (function frame(){
+      x.clearRect(0, 0, W, H);
+      ps.forEach(p => {
+        p.vy += .16 * dpr; p.vy = Math.min(p.vy, 3.2 * dpr); p.vx *= .975; p.w += .09;
+        p.x += p.vx + Math.sin(p.w) * .9 * dpr; p.y += p.vy; p.r += p.vr;
+        x.save(); x.translate(p.x, p.y); x.rotate(p.r); x.scale(1, Math.cos(p.w));
+        x.fillStyle = p.c; x.globalAlpha = Math.max(0, Math.min(1, (life - n) / 80));
+        x.fillRect(-p.s/2, -p.s/2, p.s, p.s); x.restore();
+      });
+      ++n < life ? requestAnimationFrame(frame) : x.clearRect(0, 0, W, H);
+    })();
+  }
+
+  load();
+})();
+</script>
+</body>
+</html>

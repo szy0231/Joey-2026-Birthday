@@ -33,6 +33,8 @@ if [ ! -f .env ]; then
   sed "s/^ADMIN_KEY=.*/ADMIN_KEY=$(openssl rand -hex 12)/" .env.example > .env
   NEW_ENV=1
 fi
+# Joey 的页面用一个猜不到的网址；老的 .env 里没有就补上
+grep -q '^VIEW_KEY=.\+' .env || echo "VIEW_KEY=$(openssl rand -hex 8)" >> .env
 chmod 600 .env
 chown -R joey:joey "$APP"
 
@@ -87,6 +89,7 @@ KEY="$(grep '^ADMIN_KEY=' .env | cut -d= -f2-)"
 echo
 echo "上传页：  https://$DOMAIN"
 echo "管理页：  https://$DOMAIN/admin?key=$KEY"
+echo "Joey 的页面（只给 Joey）：  https://$DOMAIN/for-joey/$(grep '^VIEW_KEY=' .env | cut -d= -f2-)"
 echo "以后更新：输入 joey-update"
 if [ "${NEW_ENV:-}" = 1 ] || ! grep -q '^R2_ACCOUNT_ID=.\+' .env; then
   echo

@@ -3,7 +3,8 @@
 朋友们打开网页，写一段祝福，可选再传一段视频。不需要登录，知道网址就能用。
 
 - `public/index.html` 上传页（给朋友们）
-- `server/` Node 服务：接收文字和视频，后台存入 Cloudflare R2
+- `views/joey.html` Joey 看的页面，只在 `https://你的域名/for-joey/<VIEW_KEY>` 下能打开
+- `server/` Node 服务：接收文字、照片和视频，后台存入 Cloudflare R2，并把视频转成浏览器都能播的 1080p
 - `deploy/setup.sh` 服务器一键安装 / 更新
 
 ## 数据存在哪里
@@ -12,6 +13,7 @@
 |---|---|
 | 视频原片 | R2 存储桶里的 `originals/<编号>.<扩展名>` |
 | 明信片封面照片 | R2 存储桶里的 `covers/<编号>.jpg`（上传前在手机上缩到最长边 2000 像素） |
+| 视频播放版 | R2 存储桶里的 `play/<编号>.mp4` 和封面帧 `play/<编号>.jpg`（H.264，最长边 1920，最高 30 帧）；服务器 `data/play/` 也留一份用于播放 |
 | 文字祝福 | R2 存储桶里的 `wishes/<编号>.json`（含署名、时间、对应视频的文件名） |
 | 服务器本地 | `data/wishes/` 保留一份文字；视频确认已完整存入 R2 后才从本地删除 |
 
@@ -58,6 +60,7 @@
 | 更新到最新代码 | `joey-update`（第一次用之前先运行一遍 `cd /opt/joey && git pull && bash deploy/setup.sh 你的域名`） |
 | 看运行日志 | `journalctl -u joey -n 100` |
 | 重启 | `systemctl restart joey` |
+| Joey 的页面 | 管理页顶部有链接；网址里的 key 在 `.env` 的 `VIEW_KEY` |
 | 看谁寄了 | 打开 `https://你的域名/admin?key=…`（key 在 `.env` 的 `ADMIN_KEY`） |
 
 ## 本地开发

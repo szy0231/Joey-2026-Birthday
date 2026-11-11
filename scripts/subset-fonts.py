@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Rebuild public/fonts/ from the @fontsource npm packages.
 
-The Chinese serif is cut down to just the characters that appear in public/*.html,
-so rerun this whenever the page copy changes:
+The Chinese serif is cut down to just the characters that appear in public/*.html and views/*.html,
+so rerun this whenever the page copy changes
+(and bump the ?v= number on the font URLs in the pages, because fonts are cached for a year):
 
     pip install fonttools brotli
     mkdir /tmp/fontsrc && cd /tmp/fontsrc
@@ -25,7 +26,7 @@ def find(name):
     return hits[0]
 
 chars = set()
-for page in (root / 'public').glob('*.html'):
+for page in [*(root / 'public').glob('*.html'), *(root / 'views').glob('*.html')]:
     chars |= {c for c in page.read_text(encoding='utf-8') if ord(c) >= 0x2000}
 text = ''.join(sorted(chars))
 

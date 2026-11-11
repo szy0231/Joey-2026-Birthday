@@ -1,6 +1,7 @@
 // Cloudflare R2 (S3-compatible). If the R2_* variables are missing, storage is disabled and files stay on local disk.
 import fs from 'node:fs';
-import { S3Client, HeadObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
+import { pipeline } from 'node:stream/promises';
+import { S3Client, GetObjectCommand, HeadObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
 import { Upload } from '@aws-sdk/lib-storage';
 
 export function makeStorage(env) {
@@ -28,6 +29,12 @@ export function makeStorage(env) {
     },
     async putJSON(key, obj) {
       await s3.send(new PutObjectCommand({ Bucket: R2_BUCKET, Key: key, Body: JSON.stringify(obj, null, 2), ContentType: 'application/json; charset=utf-8' }));
+    },
+    // Download to `file` (written to a temporary name first, so a half download is never mistaken for the file).
+    async getFile(key, file) {
+      const r = await s3.send(new GetObjectCommand({ Bucket: R2_BUCKET, Key: key }));
+      await pipeline(r.Body, fs.createWriteStream(file + '.part'));
+      await fs.promises.rename(file + '.part', file);
     },
     async size(key) {
       return (await s3.send(new HeadObjectCommand({ Bucket: R2_BUCKET, Key: key }))).ContentLength;
