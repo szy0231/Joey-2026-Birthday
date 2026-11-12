@@ -160,11 +160,18 @@ h1{margin:0;font:italic 500 clamp(56px,17vw,92px)/1 var(--f-latin);letter-spacin
 .stamp:hover b svg{transform:scale(1.15)}
 .stamp b span{font:500 12px/1 var(--f-latin);letter-spacing:.08em;color:var(--gold);font-variant-numeric:lining-nums}
 .stamp.wait b{filter:saturate(.4) brightness(.85)}
+.stamp b .load{display:block;width:30px;height:2px;margin-top:-3px;border-radius:2px;background:rgba(216,185,140,.25);overflow:hidden;font-size:0}
+.stamp b .load .fill{display:block;width:0;height:100%;background:var(--gold-hi);transition:width .45s linear}
 .stamp.wait b svg{fill:none;stroke:var(--gold);stroke-width:1.4;stroke-linecap:round}
 .vnote{margin:-4px 0 0;font-size:12px;letter-spacing:.24em;color:var(--pearl-dim);animation:fade .3s ease both}
 .shake{animation:shake .4s}
 @keyframes shake{20%{transform:rotate(7deg) translateX(-5px)}40%{transform:rotate(7deg) translateX(4px)}60%{transform:rotate(7deg) translateX(-3px)}80%{transform:rotate(7deg) translateX(2px)}}
 
+.prep{position:fixed;left:50%;bottom:calc(14px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:45;width:max-content;
+  max-width:calc(100% - 32px);padding:10px 18px;border-radius:16px;background:var(--pearl);color:var(--wine);font-size:13px;line-height:1.6;text-align:center;
+  box-shadow:0 16px 30px -12px rgba(0,0,0,.7)}
+.prep b{display:block;font-weight:600}
+.prep.ok{background:var(--foil);color:var(--wine-deep)}
 .modal{position:fixed;inset:0;z-index:35;background:rgba(14,2,6,.96);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;
   padding:calc(68px + env(safe-area-inset-top,0px)) 16px calc(20px + env(safe-area-inset-bottom,0px));animation:fade .3s ease both}
 .modal .icon-btn{position:absolute;top:calc(12px + env(safe-area-inset-top,0px));right:max(16px,env(safe-area-inset-right,0px))}
@@ -231,6 +238,7 @@ h1{margin:0;font:italic 500 clamp(56px,17vw,92px)/1 var(--f-latin);letter-spacin
     </div>
   </div>
 </div>
+<div class="prep" id="prep" hidden><b id="prep-h"></b><span id="prep-s"></span></div>
 <canvas id="foil"></canvas>
 
 <script>
@@ -238,13 +246,14 @@ h1{margin:0;font:italic 500 clamp(56px,17vw,92px)/1 var(--f-latin);letter-spacin
   const $ = id => document.getElementById(id);
   const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
   const API = '/api/view/' + encodeURIComponent(location.pathname.split('/')[2] || '');
+  const prep = new URLSearchParams(location.search).has('prep');   // the person setting up the device, not Joey
   document.addEventListener('touchstart', () => {}, {passive:true}); // enables :active on iOS
   const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
   const clock = s => Math.floor(s / 60) + ':' + String(Math.round(s % 60)).padStart(2, '0');
 
   let wishes = [], read = new Set();
   try { read = new Set(JSON.parse(localStorage.getItem('joey-read') || '[]')); } catch (e) {}
-  const markRead = id => { read.add(id); try { localStorage.setItem('joey-read', JSON.stringify([...read])); } catch (e) {} };
+  const markRead = id => { if (prep) return; read.add(id); try { localStorage.setItem('joey-read', JSON.stringify([...read])); } catch (e) {} };
 
   /* ---------- sound + haptics ---------- */
   let ac, sound = true;
@@ -284,6 +293,7 @@ h1{margin:0;font:italic 500 clamp(56px,17vw,92px)/1 var(--f-latin);letter-spacin
     $('lead').innerHTML = '<b>' + wishes.length + '</b>位朋友给你寄了明信片';
     $('center-n').textContent = wishes.length;
     $('env').hidden = false; $('open-hint').hidden = false;
+    startLoader();                                                   // videos start coming before the envelope is even opened
   }
   $('retry').onclick = () => { fx.tap(); load(); };
 
@@ -335,7 +345,7 @@ h1{margin:0;font:italic 500 clamp(56px,17vw,92px)/1 var(--f-latin);letter-spacin
   /* ---------- opening a postcard ---------- */
   const PLAY = '<svg viewBox="0 0 12 14"><path d="M0 0l12 7-12 7z"/></svg>';
   const CLOCK = '<svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.5"/><path d="M8 4.5V8l2.5 1.6"/></svg>';
-  let openK = -1;
+  let openK = -1, stampT = 0;
   field.addEventListener('pointerover', e => { const it = e.target.closest('.item'); if (it && e.pointerType === 'mouse' && !it.contains(e.relatedTarget)) fx.hover(+it.dataset.k); });
   field.addEventListener('click', e => {
     const it = e.target.closest('.item'); if (!it) return;
@@ -351,32 +361,34 @@ h1{margin:0;font:italic 500 clamp(56px,17vw,92px)/1 var(--f-latin);letter-spacin
     const wrap = $('cardwrap'), c = wrap.getBoundingClientRect();    // grow out of the seal that was touched
     wrap.style.setProperty('--ox', (b.left + b.width / 2 - c.left) + 'px'); wrap.style.setProperty('--oy', (b.top + b.height / 2 - c.top) + 'px');
     fx.pick(k); markRead(w.id); it.classList.add('read');
-    if (v && v.ready) prefer(w);                                     // start fetching this card's video right away
+    if (v && v.ready) { focusOn(w); paintStamp(); clearInterval(stampT); stampT = setInterval(paintStamp, 500); }   // this card's video first
     $('veil-x').focus({ preventScroll: true });
   });
   function closeCard(){
     if ($('veil').hidden || $('veil').classList.contains('closing')) return;
-    fx.close(); $('veil').classList.add('closing');
+    fx.close(); $('veil').classList.add('closing'); clearInterval(stampT);
     setTimeout(() => { $('veil').hidden = true; $('card').innerHTML = ''; const it = field.querySelector(`[data-k="${openK}"]`); if (it) it.focus({ preventScroll: true }); }, reduce ? 0 : 260);
   }
   $('veil-x').onclick = closeCard;
   $('veil').addEventListener('click', e => { if (e.target === $('veil')) closeCard(); });
 
   /* ---------- video ----------
-     Two ways to play, chosen per tap:
-       ready     the whole file was already fetched in the background: it plays from memory, instantly.
-       streamed  it plays from the server, but only starts once enough is buffered that the rest will arrive
-                 before it is needed (worked out from the measured download speed and the video's bitrate).
-     Background fetching starts when the envelope opens, takes the opened card's video first, and stays within
-     a memory budget so a phone is never asked to hold more than it can.
-     Each video can come from up to three places: the server, or straight from Cloudflare R2 or Tencent Cloud COS
-     (alts). Right after the envelope opens, a few MB are fetched from each at once and the fastest is used. */
+     Every video starts downloading the moment this page opens, in seal order (the server puts postcards
+     without a video first, then videos from smallest to largest), so the longest ones get the most time.
+     Each file comes in 4 MB pieces over several connections at once, from whichever route measured fastest,
+     and is kept in the browser's own storage on disk: a phone can hold all of them, and they survive a reload
+     or a second visit (open the page with ?prep once on the device Joey will use and everything is ready).
+     A video that is fully on the device plays from there and cannot stall. One that is not complete yet waits
+     for its remaining pieces, shown as a ring with the time left, unless the line is fast enough to play it
+     straight away, or Joey chooses not to wait. */
   const player = $('player'), coarse = matchMedia('(pointer:coarse)').matches;
-  const BUDGET = coarse ? 400e6 : 1500e6, ONE = coarse ? 160e6 : 700e6;   // bytes kept in memory: in total, per video
+  const PIECE = 4 << 20, LANES = 4;
+  const MEM_BUDGET = coarse ? 400e6 : 1500e6;                       // only used when the browser offers no storage
   const saver = !!(navigator.connection && navigator.connection.saveData);
-  const store = new Map();   // wish id -> { state: idle | loading | ready | failed, got, url, ctrl, done }
-  let used = 0, rate = 0, streaming = false, wanted = null, pumping = false, session = null;
-  let route = 'server', probing = null, routeKnown = false;
+  let box = null, full = false, memUsed = 0, jobs = [], byId = new Map(), focusJob = null, paused = false, lanes = 0, session = null;
+
+  /* routes: the server, or straight from Cloudflare R2 or Tencent Cloud COS (alts) */
+  let route = 'server', probing = null, probeRate = 0;
   const alts = w => (w.video && w.video.alts) || {};
   const srcOf = w => alts(w)[route] || w.video.src;
   const altFailed = () => { if (route !== 'server') { console.warn(route, 'route failed; using the server'); route = 'server'; } };
@@ -395,70 +407,177 @@ h1{margin:0;font:italic 500 clamp(56px,17vw,92px)/1 var(--f-latin);letter-spacin
     })();
     return t;
   }
-  // Fetch the start of one video from both places at once; as soon as either has finished (or 6 s have passed),
-  // compare how fast each was going and stop both.
+  // Fetch the start of one video from every route at once; as soon as one has finished (or 3 s have passed),
+  // compare how fast each was going and stop them all.
   function chooseRoute(){
     return probing = probing || (async () => {
-      const w = wishes.find(x => x.video && x.video.ready && Object.keys(alts(x)).length && x.video.size > 6e6);
-      if (!w) { routeKnown = true; return; }
-      const tests = [['server', w.video.src], ...Object.entries(alts(w))].map(([id, url]) => ({ id, t: trial(url, 6 << 20) }));
+      const w = wishes.find(x => x.video && x.video.ready && Object.keys(alts(x)).length && x.video.size > 3e6);
+      if (!w) return;
+      const tests = [['server', w.video.src], ...Object.entries(alts(w))].map(([id, url]) => ({ id, t: trial(url, 3 << 20) }));
       const firstOk = new Promise(r => tests.forEach(x => x.t.done.then(ok => ok && r())));   // a failure does not end the race
-      await Promise.race([Promise.all(tests.map(x => x.t.done)), firstOk.then(() => new Promise(r => setTimeout(r, 150))), new Promise(r => setTimeout(r, 6000))]);
+      await Promise.race([Promise.all(tests.map(x => x.t.done)), firstOk.then(() => new Promise(r => setTimeout(r, 150))), new Promise(r => setTimeout(r, 3000))]);
       const rates = Object.fromEntries(tests.map(x => [x.id, x.t.rate()])); tests.forEach(x => x.t.ctrl.abort());
       const best = Object.keys(rates).reduce((a, b) => (rates[b] > rates[a] ? b : a), 'server');
       route = best !== 'server' && rates[best] > rates.server * 1.15 ? best : 'server';
-      sample(Math.max(...Object.values(rates)) * 1.6);               // they ran side by side, sharing the line
-      routeKnown = true;
+      probeRate = rates[route];
       console.info('route:', route, '|', Object.entries(rates).map(([k, v]) => k + ' ' + (v * 8 / 1e6).toFixed(1) + ' Mb/s').join(' | '));
     })();
   }
-  const entry = id => { if (!store.has(id)) store.set(id, { state: 'idle', got: 0 }); return store.get(id); };
-  const sample = bps => { if (bps > 0 && isFinite(bps)) rate = rate ? rate * .6 + bps * .4 : bps; };   // bytes per second
-  const fits = w => !!w.video && w.video.ready && w.video.size <= ONE && used + w.video.size <= BUDGET;
 
-  function pull(w){
-    const e = entry(w.id); if (e.state === 'loading' || e.state === 'ready') return e.done;
-    e.state = 'loading'; e.got = 0; e.ctrl = new AbortController();
-    return e.done = (async () => {
-      try {
-        e.from = srcOf(w);
-        const r = await fetch(e.from, { signal: e.ctrl.signal }); if (!r.ok || !r.body) throw new Error('http ' + r.status);
-        const reader = r.body.getReader(), parts = []; let t = performance.now(), n = 0;
-        for (;;) {
-          const { done, value } = await reader.read(); if (done) break;
-          parts.push(value); e.got += value.length; n += value.length;
-          const now = performance.now();
-          if (now - t > 700) { sample(n / ((now - t) / 1000)); t = now; n = 0; }
-        }
-        e.url = URL.createObjectURL(new Blob(parts, { type: 'video/mp4' })); e.state = 'ready'; used += e.got;
-      } catch (err) {
-        e.got = 0;
-        if (e.ctrl.signal.aborted) e.state = 'idle';
-        else if (e.from !== w.video.src) { altFailed(); e.state = 'idle'; }   // try again from the server
-        else e.state = 'failed';
+  /* speed: across all connections (for times left), and per connection (whether one stream can keep up) */
+  const recent = [], perConn = [];
+  const meter = n => { recent.push([performance.now(), n]); };
+  function rate(){
+    const now = performance.now(); while (recent.length && now - recent[0][0] > 4000) recent.shift();
+    if (!recent.length) return probeRate * LANES * .8;
+    return recent.reduce((s, x) => s + x[1], 0) / (Math.max(1000, now - recent[0][0]) / 1000);
+  }
+  const connRate = () => { if (!perConn.length) return probeRate; const s = [...perConn].sort((a, b) => a - b); return s[s.length >> 1]; };
+
+  /* the download queue */
+  const pieceSize = (j, i) => Math.min(PIECE, j.size - i * PIECE);
+  const keyOf = (j, i) => new Request(j.path + '?piece=' + i);
+  const progressOf = j => [...j.inflight.values()].reduce((s, n) => s + n, j.got);   // bytes on the device or arriving
+  function makeJobs(){
+    jobs = wishes.filter(w => w.video && w.video.ready && w.video.size > 0).map(w => {
+      const path = new URL(w.video.src, location.href).pathname;       // stable for this version of the file, whatever the route
+      return { w, path, size: w.video.size, n: Math.ceil(w.video.size / PIECE), have: new Set(), got: 0, inflight: new Map(), wait: new Map(), ctrls: new Map(), mem: [], fails: 0, state: 'idle' };
+    });
+    byId = new Map(jobs.map(j => [j.w.id, j]));
+  }
+  async function openBox(){
+    try {
+      if (!window.caches) return null;
+      const c = await caches.open('joey-videos');
+      for (const req of await c.keys()) {
+        const u = new URL(req.url), j = jobs.find(x => x.path === u.pathname), i = Number(u.searchParams.get('piece'));
+        if (!j || !(i >= 0 && i < j.n)) { c.delete(req); continue; }   // a video that has since been remade or removed
+        if (!j.have.has(i)) { j.have.add(i); j.got += pieceSize(j, i); }
       }
-    })();
+      return c;
+    } catch (e) { return null; }
   }
-  const stopPulls = keep => store.forEach((e, id) => { if (e.state === 'loading' && id !== keep) e.ctrl.abort(); });
-  async function pump(){
-    if (pumping || saver) return; pumping = true;
-    await chooseRoute();
-    for (;;) {
-      if (streaming) { await new Promise(r => setTimeout(r, 400)); continue; }
-      const next = [wanted, ...wishes].find(w => w && fits(w) && entry(w.id).state === 'idle');
-      if (!next) break;
-      await pull(next);
+  function finished(j){
+    j.state = 'ready'; j.wait.clear(); paintPrep();
+    if (session && session.j === j && session.waiting) session.waiting();
+  }
+  async function fetchPiece(j, i){
+    const start = i * PIECE, len = pieceSize(j, i), url = srcOf(j.w), ctrl = new AbortController();
+    j.ctrls.set(i, ctrl); j.inflight.set(i, 0);
+    let quiet = setTimeout(() => ctrl.abort(), 20000), n = 0, tFirst = 0;
+    try {
+      const r = await fetch(url, { headers: { Range: `bytes=${start}-${start + len - 1}` }, signal: ctrl.signal, cache: 'no-store' });
+      if (r.status !== 206 && !(r.status === 200 && j.n === 1)) throw new Error('HTTP ' + r.status);
+      const reader = r.body.getReader(), parts = [];
+      for (;;) {
+        const { done: end, value } = await reader.read(); if (end) break;
+        clearTimeout(quiet); quiet = setTimeout(() => ctrl.abort(), 20000);   // nothing for 20 s: drop it and retry
+        if (!tFirst) tFirst = performance.now();
+        parts.push(value); n += value.length; j.inflight.set(i, n); meter(value.length);
+      }
+      if (n !== len) throw new Error('piece came back short');
+      const blob = new Blob(parts);
+      if (box && !full) {
+        try { await box.put(keyOf(j, i), new Response(blob)); }
+        catch (e) { if (e && e.name === 'QuotaExceededError') full = true; else throw e; }
+      }
+      if (!box || full) {
+        if (memUsed + len > MEM_BUDGET) { const e = new Error('no room'); e.name = 'NoRoom'; throw e; }
+        j.mem[i] = blob; memUsed += len;
+      }
+      j.have.add(i); j.got += len; j.fails = 0;
+      if (len > 2e6) { perConn.push(len / Math.max(.05, (performance.now() - tFirst) / 1000)); if (perConn.length > 8) perConn.shift(); }
+    } catch (e) {
+      if (ctrl.yielded) { const y = new Error('gave way'); y.name = 'Yielded'; throw y; }
+      throw e;
+    } finally {
+      clearTimeout(quiet); j.ctrls.delete(i); j.inflight.delete(i);
     }
-    pumping = false;
   }
-  function prefer(w){
-    wanted = w;
-    const e = entry(w.id);
-    if (e.state === 'idle' && fits(w)) store.forEach((o, id) => { if (o.state === 'loading' && id !== w.id && o.got < .7 * (wishes.find(x => x.id === id).video.size)) o.ctrl.abort(); });
+  function nextPiece(){
+    const now = performance.now();
+    for (const j of focusJob ? [focusJob, ...jobs] : jobs) {
+      if (j.state === 'ready' || j.state === 'failed' || j.state === 'skip') continue;
+      if (full && !j.have.size && j !== focusJob) continue;            // out of space: do not start new videos
+      for (let i = 0; i < j.n; i++) if (!j.have.has(i) && !j.inflight.has(i) && !((j.wait.get(i) || 0) > now)) return [j, i];
+    }
+    return null;
+  }
+  async function lane(first){
+    lanes++;
+    try {
+      for (let next = first; next && !paused; next = nextPiece()) {
+        const [j, i] = next; j.state = 'loading';
+        try {
+          await fetchPiece(j, i);
+          if (j.have.size === j.n) finished(j);
+        } catch (e) {
+          if (paused) break;                                           // stopped on purpose; the piece is fetched again later
+          if (e && e.name === 'Yielded') continue;                     // made way for the video Joey just opened
+          if (e && e.name === 'NoRoom') { j.state = 'skip'; paintPrep(); continue; }   // it will play from the network instead
+          j.fails++;
+          if (srcOf(j.w) !== j.w.video.src && j.fails >= 2) altFailed();
+          if (j.fails >= 8) { j.state = 'failed'; paintPrep(); continue; }
+          const delay = Math.min(15000, 500 * 2 ** j.fails);
+          j.wait.set(i, performance.now() + delay); setTimeout(pump, delay + 50);
+        }
+        paintPrep();
+      }
+    } finally { lanes--; }
+  }
+  function pump(){
+    if (paused || (saver && !prep)) return;
+    for (let next; lanes < LANES && (next = nextPiece());) lane(next);
+  }
+  function pause(){ paused = true; jobs.forEach(j => j.ctrls.forEach(c => c.abort())); }
+  function resume(){ paused = false; pump(); }
+  // Put one video ahead of the rest: pieces of other videos that have barely started give way at once.
+  function focusOn(w){
+    const j = byId.get(w.id); if (!j || j.state === 'ready') return;
+    focusJob = j;
+    if (j.n - j.have.size - j.inflight.size > 0) jobs.forEach(o => {
+      if (o !== j) o.ctrls.forEach((c, i) => { if ((o.inflight.get(i) || 0) < pieceSize(o, i) * .6) { c.yielded = true; c.abort(); } });
+    });
     pump();
   }
 
-  // loading ring
+  async function startLoader(){
+    makeJobs();
+    box = await openBox();
+    if (!box) {                                                       // no storage: keep what fits in memory, stream the rest
+      let mem = 0;
+      jobs.forEach(j => { if (mem + j.size <= MEM_BUDGET) mem += j.size; else j.state = 'skip'; });
+    }
+    jobs.forEach(j => { if (j.have.size === j.n) j.state = 'ready'; });
+    paintPrep();
+    if (jobs.every(j => j.state !== 'idle')) return;                   // everything is already on this device
+    await chooseRoute();
+    pump();
+  }
+
+  /* the preparation panel, shown only with ?prep in the address */
+  let prepT = 0;
+  function paintPrep(){
+    if (!prep || performance.now() - prepT < 250) return; prepT = performance.now();
+    const all = jobs.filter(j => j.state !== 'skip'), ok = all.filter(j => j.state === 'ready').length;
+    const total = all.reduce((s, j) => s + j.size, 0), have = all.reduce((s, j) => s + Math.min(j.size, progressOf(j)), 0), r = rate();
+    const mb = x => Math.round(x / 1e6).toLocaleString();
+    let head, sub;
+    if (!jobs.length) { head = '还没有可以准备的视频'; sub = ''; }
+    else if (ok === all.length && ok === jobs.length) { head = '全部 ' + ok + ' 个视频都存在这台设备上了'; sub = '可以交给 Joey 了。用同一个浏览器打开她的链接就行。'; }
+    else {
+      head = '正在把视频存到这台设备：' + ok + ' / ' + jobs.length;
+      sub = mb(have) + ' / ' + mb(total) + ' MB' + (r ? ' · ' + (r * 8 / 1e6).toFixed(1) + ' Mb/s · 还要约 ' + Math.max(1, Math.ceil((total - have) / r / 60)) + ' 分钟' : '') + ' · 请保持页面开着';
+    }
+    if (!box && jobs.length) sub = '这个浏览器不能把视频存到设备上，换 Safari 或 Chrome 打开。' + (sub ? ' ' + sub : '');
+    if (full) sub = '设备空间不够了，有的视频没存下，到时候会边下边播。' + (sub ? ' ' + sub : '');
+    if (jobs.some(j => j.state === 'failed')) sub += ' 有视频下载失败，刷新页面会重试。';
+    $('prep-h').textContent = head; $('prep-s').textContent = sub;
+    $('prep').classList.toggle('ok', ok === jobs.length && !!jobs.length); $('prep').hidden = false;
+  }
+  if (prep) setInterval(paintPrep, 1000);
+
+  /* the loading ring */
   function buf(frac, text){
     $('buf').hidden = false; player.controls = false;
     const f = Math.max(0, Math.min(1, frac || 0));
@@ -466,26 +585,52 @@ h1{margin:0;font:italic 500 clamp(56px,17vw,92px)/1 var(--f-latin);letter-spacin
     $('buf-txt').textContent = text || '正在准备视频';
   }
   const unbuf = () => { $('buf').hidden = true; player.controls = true; };
-  const eta = s => (s > 1.5 && isFinite(s) ? '还要大约 ' + Math.ceil(s) + ' 秒' : '马上就好');
+  const eta = s => (s > 1.5 && isFinite(s) ? '还要大约 ' + (s > 90 ? Math.ceil(s / 60) + ' 分钟' : Math.ceil(s) + ' 秒') : '马上就好');
   const bufferedEnd = t => { const b = player.buffered; for (let i = 0; i < b.length; i++) if (b.start(i) <= t + .15 && b.end(i) >= t) return b.end(i); return t; };
 
   function playNow(url){
     unbuf(); player.volume = 1; player.src = url;
     const p = player.play(); if (p && p.catch) p.catch(() => {});   // if the browser wants a tap, its own play button is showing
   }
-  function waitForFetch(w, e, ses){
-    buf(e.got / w.video.size);
-    ses.timer = setInterval(() => {
-      if (e.state === 'ready') { clearInterval(ses.timer); playNow(e.url); }
-      else if (e.state !== 'loading') { clearInterval(ses.timer); stream(w, ses); }
-      else buf(e.got / w.video.size, eta((w.video.size - e.got) / (rate || 1)));
-    }, 200);
-    ses.skip = () => { clearInterval(ses.timer); stream(w, ses, true); };
+  // The whole file from the device, as one address the player can use.
+  async function deviceUrl(j){
+    const parts = [];
+    for (let i = 0; i < j.n; i++) {
+      let b = j.mem[i];
+      if (!b) { const r = box && await box.match(keyOf(j, i)); if (!r) { j.have.delete(i); j.got -= pieceSize(j, i); } else b = await r.blob(); }
+      if (!b) { j.state = 'loading'; throw new Error('piece missing'); }
+      parts.push(b);
+    }
+    return URL.createObjectURL(new Blob(parts, { type: 'video/mp4' }));
   }
+  async function playFromDevice(ses){
+    ses.waiting = null; buf(1, '马上就好');
+    try { ses.url = await deviceUrl(ses.j); }
+    catch (e) { focusOn(ses.w); pump(); return waitForDevice(ses); }   // something was evicted: fetch it again
+    if (session !== ses) { URL.revokeObjectURL(ses.url); return; }
+    playNow(ses.url);
+  }
+  function waitForDevice(ses){
+    const j = ses.j, v = ses.w.video, bps = v.duration ? v.size / v.duration : 0;
+    const tick = () => {
+      if (session !== ses) return clearInterval(ses.timer);
+      if (j.state === 'ready') { clearInterval(ses.timer); return playFromDevice(ses); }
+      if (j.state === 'failed' || j.state === 'skip') { clearInterval(ses.timer); return stream(ses.w, ses); }
+      const left = j.size - progressOf(j), r = rate(), one = connRate();
+      // One connection can outrun playback by a clear margin: no reason to wait, play from the network.
+      if (one && bps && one > bps * 1.4 && left / (r || 1) > 4) { clearInterval(ses.timer); return stream(ses.w, ses); }
+      buf(progressOf(j) / j.size, r ? eta(left / r) : '正在准备视频');
+    };
+    ses.waiting = tick;
+    tick(); ses.timer = setInterval(tick, 250);
+    ses.skip = () => { clearInterval(ses.timer); ses.waiting = null; stream(ses.w, ses, true); };
+  }
+  // Play from the network. Unless told not to, start only once enough is buffered that the rest arrives in time,
+  // and if it ever runs dry, pause and buffer again instead of stuttering.
   function stream(w, ses, noHold){
     const v = w.video, bps = v.duration ? v.size / v.duration : 0;
-    streaming = true; stopPulls();                                  // the whole connection goes to this video
-    let hold = !noHold, lastEnd = 0, lastT = performance.now(), grew = lastT, sr = rate, first = true;
+    ses.waiting = null; pause();                                       // the whole line goes to this video
+    let hold = !noHold, lastEnd = 0, lastT = performance.now(), grew = lastT, sr = connRate(), first = true;
     const go = () => {
       hold = false; unbuf(); player.volume = 1;
       if (first && player.currentTime < .4) { try { player.currentTime = 0; } catch (e) {} } first = false;
@@ -493,9 +638,9 @@ h1{margin:0;font:italic 500 clamp(56px,17vw,92px)/1 var(--f-latin);letter-spacin
     };
     ses.skip = go;
     player.onplaying = () => { if (hold) player.pause(); };
-    player.onwaiting = () => {                                       // ran dry mid-play: buffer again rather than freeze
+    player.onwaiting = () => {
       clearTimeout(ses.stall);
-      ses.stall = setTimeout(() => { if (!hold && !player.paused && player.readyState < 3) { hold = true; player.pause(); buf(0, '正在缓冲'); } }, 700);
+      ses.stall = setTimeout(() => { if (!hold && !player.paused && player.readyState < 3) { hold = true; player.pause(); buf(0, '正在缓冲'); } }, 300);
     };
     if (hold) { buf(0); player.volume = 0; } else unbuf();
     ses.from = srcOf(w); player.src = ses.from;
@@ -503,36 +648,35 @@ h1{margin:0;font:italic 500 clamp(56px,17vw,92px)/1 var(--f-latin);letter-spacin
     ses.timer = setInterval(() => {
       const now = performance.now(), t = player.currentTime, end = bufferedEnd(t), dur = isFinite(player.duration) && player.duration ? player.duration : v.duration;
       if (end > lastEnd + .01) {
-        if (lastEnd && bps && end - lastEnd < 30) { const inst = (end - lastEnd) * bps / ((now - lastT) / 1000); sr = sr ? sr * .6 + inst * .4 : inst; sample(inst); }
+        if (lastEnd && bps && end - lastEnd < 30) { const inst = (end - lastEnd) * bps / ((now - lastT) / 1000); sr = sr ? sr * .7 + inst * .3 : inst; }
         lastEnd = end; lastT = now; grew = now;
       }
       if (!hold) return;
       const left = Math.max(0, dur - t), ahead = Math.max(0, end - t);
-      // seconds that must be in hand so the download finishes before playback catches up with it
-      let need = sr && bps ? left * (1 - sr / bps) * 1.15 + 1.5 : 3; need = Math.min(Math.max(need, 1.5), left || 1.5);
-      const whole = dur && end >= dur - .25, capped = now - grew > 3500 && ahead > 1;   // capped: the browser will not buffer further
+      // seconds that must be in hand so the download finishes before playback catches up with it, with room to spare
+      let need = sr && bps ? left * (1 - sr / bps) * 1.3 + 3 : 6; need = Math.min(Math.max(need, 3), left || 3);
+      const whole = dur && end >= dur - .25, capped = now - grew > 5000 && ahead >= Math.min(need, 10);   // capped: the browser will not buffer further
       if (whole || ahead >= need || capped) go();
       else buf(ahead / need, sr && bps ? eta((need - ahead) / (sr / bps)) : '正在缓冲');
     }, 200);
   }
   function openVideo(w){
-    const v = w.video, e = entry(w.id), bps = v.duration ? v.size / v.duration : 0;
-    const ses = session = { w };
+    const v = w.video, j = byId.get(w.id);
+    const ses = session = { w, j };
     $('modal-who').innerHTML = '<i>from</i>' + esc(w.name);
     $('vbox').style.setProperty('--ar', v.width && v.height ? (v.width / v.height).toFixed(4) : '1.7778');
     if (v.poster) player.poster = v.poster; else player.removeAttribute('poster');
     $('modal').hidden = false;
-    player.onerror = () => {                                         // a file played from memory failed: play it from the server
+    player.onerror = () => {
       if (session !== ses) return;
-      if (player.src.startsWith('blob:')) { clearInterval(ses.timer); stream(w, ses); }
-      else if (ses.from && ses.from !== v.src) { clearInterval(ses.timer); clearTimeout(ses.stall); altFailed(); stream(w, ses); }
-      else { clearInterval(ses.timer); buf(0, '这段视频打不开'); $('buf-skip').hidden = true; }
+      clearInterval(ses.timer); clearTimeout(ses.stall);
+      if (player.src.startsWith('blob:')) stream(w, ses);              // the copy on the device would not play: use the network
+      else if (ses.from && ses.from !== v.src) { altFailed(); stream(w, ses); }
+      else { buf(0, '这段视频打不开'); $('buf-skip').hidden = true; }
     };
     $('buf-skip').hidden = false;
-    if (e.state === 'ready') return playNow(e.url);
-    if (!routeKnown && Object.keys(alts(w)).length) { buf(0); return chooseRoute().then(() => { if (session === ses) openVideo(w); }); }   // tapped before the route was chosen
-    const streamWait = rate && bps ? Math.max(0, v.duration * (bps / rate - 1)) : 0, fetchWait = rate ? (v.size - e.got) / rate : Infinity;
-    if (e.state === 'loading' && fetchWait <= streamWait + 3) return waitForFetch(w, e, ses);   // nearly there: finish, then play from memory
+    if (j && j.state === 'ready') return playFromDevice(ses);
+    if (j && j.state !== 'failed' && j.state !== 'skip') { focusOn(w); return waitForDevice(ses); }
     stream(w, ses);
   }
   function closeVideo(){
@@ -541,7 +685,19 @@ h1{margin:0;font:italic 500 clamp(56px,17vw,92px)/1 var(--f-latin);letter-spacin
     if (ses) { clearInterval(ses.timer); clearTimeout(ses.stall); }
     player.onplaying = player.onwaiting = player.onerror = null;
     player.pause(); player.removeAttribute('src'); player.load(); $('buf').hidden = true; $('modal').hidden = true;
-    streaming = false; pump();
+    if (ses && ses.url) URL.revokeObjectURL(ses.url);
+    resume();
+  }
+
+  /* the stamp: a thin bar under the duration while the video is still coming */
+  function paintStamp(){
+    const w = wishes[openK], v = w && w.video; if (!v || !v.ready) return;
+    const j = byId.get(w.id), b = $('stamp').querySelector('b');
+    const frac = j && j.state !== 'ready' && j.state !== 'skip' && j.state !== 'failed' ? progressOf(j) / j.size : 1;
+    let bar = b.querySelector('.load');
+    if (frac >= 1) { if (bar) bar.remove(); return; }
+    if (!bar) { b.insertAdjacentHTML('beforeend', '<span class="load"><span class="fill"></span></span>'); bar = b.querySelector('.load'); }
+    bar.firstChild.style.width = (frac * 100).toFixed(1) + '%';
   }
   $('stamp').onclick = () => {
     const w = wishes[openK]; if (!w || !w.video) return;
@@ -562,7 +718,6 @@ h1{margin:0;font:italic 500 clamp(56px,17vw,92px)/1 var(--f-latin);letter-spacin
     setTimeout(() => {
       $('intro').hidden = true; $('scene').hidden = false; build();
       wishes.forEach((w, i) => { if (w.cover) setTimeout(() => { new Image().src = API + '/cover/' + w.id; }, 1500 + i * 250); }); // warm the photos
-      setTimeout(pump, 1200);                                        // and start bringing the videos over
     }, reduce ? 0 : 1600);
   };
   $('snd').onclick = () => {

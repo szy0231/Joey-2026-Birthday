@@ -72,11 +72,12 @@ echo "==> 配置 HTTPS（证书由 Caddy 自动申请和续期）"
 VIEW_KEY="$(grep '^VIEW_KEY=' .env | cut -d= -f2-)"
 chmod o+rx "$APP" "$APP/data"; mkdir -p "$APP/data/play"; chown joey:joey "$APP/data/play"; chmod o+rx "$APP/data/play"
 # 视频和视频封面由 Caddy 直接从硬盘发出（支持分段请求），不经过 Node；文件不在硬盘上时才转给 Node。
-# 关闭 HTTP/3：它走 UDP，跨境线路上常被限速，视频反而更卡。
+# 只用 HTTP/1.1：Joey 的页面会开几条连接同时分块下载视频，HTTP/2 会把它们挤进一条连接，跨境线路上就快不起来；
+# HTTP/3 走 UDP，跨境线路上常被限速。
 cat > /etc/caddy/Caddyfile.new <<CADDY
 {
 	servers {
-		protocols h1 h2
+		protocols h1
 	}
 }
 $DOMAIN {

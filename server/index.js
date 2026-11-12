@@ -410,10 +410,13 @@ app.get('/for-joey/:key', viewer, (req, res) => {
   res.set({ 'Cache-Control': 'no-cache', 'Referrer-Policy': 'no-referrer', 'X-Robots-Tag': 'noindex' });
   res.sendFile(path.join(ROOT, 'views', 'joey.html'));
 });
-// Shuffled, but the same shuffle every time: the numbers on the seals say how many, not who came first.
+// Seal order, which is also the order Joey's page downloads videos in: postcards without a video first, then videos
+// from smallest to largest, so the biggest files get the most time to arrive while she reads and watches the rest.
+// Ties keep a fixed shuffle, so the numbers on the seals never say who sent first.
 app.get('/api/view/:key/wishes', viewer, wrap(async (req, res) => {
   const rank = w => crypto.createHash('sha1').update(VIEW_KEY + w.id).digest('hex');
-  const ws = (await allWishes()).sort((a, b) => rank(a).localeCompare(rank(b)));
+  const weight = w => (w.video && w.video.status !== 'uploading' ? (w.video.play?.size || w.video.size) : 0);
+  const ws = (await allWishes()).sort((a, b) => weight(a) - weight(b) || rank(a).localeCompare(rank(b)));
   res.set('Cache-Control', 'no-store').json(await Promise.all(ws.map(async w => ({
     id: w.id, name: w.name, message: w.message,
     cover: !!w.cover && w.cover.status !== 'uploading',
