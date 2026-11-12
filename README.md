@@ -53,6 +53,26 @@
 5. **检查**：脚本最后会打印上传页和管理页的网址。自己寄一份带视频的祝福，然后打开管理页，
    等“视频”一栏变成“已存入 R2”，再去 Cloudflare 后台确认文件在桶里。
 
+## 让 Joey 从 Cloudflare 直接拿视频（必须做一次）
+
+Joey 的页面会同时试“香港服务器”和“Cloudflare R2”两条线路，自动用快的那条。R2 这条线需要存储桶允许
+`dearjoeyy.com` 读取：Cloudflare 后台 → R2 → `joey-birthday` → Settings → CORS Policy → Add CORS policy，粘贴下面这段并保存。
+
+```json
+[
+  {
+    "AllowedOrigins": ["https://dearjoeyy.com"],
+    "AllowedMethods": ["GET", "HEAD"],
+    "AllowedHeaders": ["Range"],
+    "ExposeHeaders": ["Content-Length", "Content-Range", "Accept-Ranges"],
+    "MaxAgeSeconds": 86400
+  }
+]
+```
+
+存储桶仍然是私有的：Joey 的页面拿到的是有效期 3 天、每次打开页面都会重新生成的单个文件链接。
+管理页的“测一下网速”会分别显示两条线路的速度；Cloudflare 那一项测速失败，多半就是这一步还没做。
+
 ## 日常
 
 | 想做的事 | 命令 |

@@ -254,6 +254,7 @@ const admin = (req, res, next) => (ADMIN_KEY && sameToken(ADMIN_KEY, req.query.k
 
 app.get('/admin', admin, wrap(async (req, res) => {
   const ws = await allWishes();
+  const r2Test = storage.enabled ? await storage.presign(SPEED_KEY, 3600).catch(() => '') : '';
   const rows = ws.map((w, i) => `<tr data-id="${w.id}"><td>${i + 1}</td><td>${esc(w.name)}</td><td>${esc(new Date(w.createdAt).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' }))}</td>
 <td class="m">${esc(w.message)}</td><td>${fileCell(w.cover, '没有封面')}</td><td>${fileCell(w.video, '没有视频')}${playCell(w.video)}</td>
 <td>${w.synced ? '是' : '还没有'}</td><td class="del"><button class="ask">删除</button><span hidden>确定删除 ${esc(w.name)} 的这条？删了找不回来。<br><button class="yes">确定删除</button> <button class="no">取消</button></span></td></tr>`).join('');
@@ -263,7 +264,7 @@ td,th{border-bottom:1px solid #ddd;padding:8px;text-align:left;vertical-align:to
 button{font:inherit;padding:4px 12px;border:1px solid #bbb;border-radius:6px;background:#fff;cursor:pointer}button:disabled{opacity:.5}
 .yes{border-color:#b00;background:#b00;color:#fff}.del{min-width:9em}.del span{color:#b00}.box{background:#f6f3f0;border-radius:8px;padding:12px 16px;margin:12px 0}.wait{color:#b00}</style>
 <h1>已收到 ${ws.length} 份祝福</h1>${VIEW_KEY ? `<p><a href="/for-joey/${esc(VIEW_KEY)}">打开 Joey 会看到的页面</a>（这个网址只给 Joey）</p>` : ''}<p>文件存储：${storage.enabled ? 'Cloudflare R2（' + esc(storage.bucket) + '）' : '<b style="color:#b00">R2 未配置，文件只在这台服务器上</b>'}。时间为北京时间。</p>
-<div class="box"><button id="speed">测一下网速</button> <span id="speed-out">从这台服务器下载到你现在这台设备的速度。在 Joey 会用的网络上测最有参考价值。</span></div>
+<div class="box"><button id="speed">测一下网速</button> <span id="speed-out">分别测从香港服务器和从 Cloudflare 下载到你这台设备的速度。在 Joey 会用的网络上测最有参考价值。</span></div>
 <div class="w"><table><tr><th>#</th><th>署名</th><th>时间</th><th>祝福</th><th>封面照片</th><th>视频</th><th>文字已备份到 R2</th><th></th></tr>${rows}</table></div>
 <script>
 const key = new URLSearchParams(location.search).get('key');
@@ -279,26 +280,55 @@ document.querySelector('table').addEventListener('click', async e => {
     else { box.innerHTML = '没删成：' + (r ? (await r.json().catch(() => ({}))).error || r.status : '网络错误') + '。刷新页面再试。'; }
   }
 });
-document.getElementById('speed').onclick = async e => {
-  const out = document.getElementById('speed-out'); e.target.disabled = true; out.textContent = '测速中…';
+const R2_TEST = ${JSON.stringify(r2Test)};
+// Downloads url for at most 20 s and returns megabits per second, measured from the first byte.
+async function measure(url){
+  const ctrl = new AbortController(), stop = setTimeout(() => ctrl.abort(), 20000);
+  let n = 0, tFirst = 0;
   try {
-    const t0 = performance.now(), r = await fetch('/admin/speed?mb=24&key=' + encodeURIComponent(key), { cache: 'no-store' });
-    const reader = r.body.getReader(); let n = 0, tFirst = 0;
+    const r = await fetch(url, { cache: 'no-store', signal: ctrl.signal });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const reader = r.body.getReader();
     for (;;) { const { done, value } = await reader.read(); if (done) break; if (!tFirst) tFirst = performance.now(); n += value.length; }
-    const mbps = n * 8 / ((performance.now() - tFirst) / 1000) / 1e6;
-    out.textContent = '下载速度约 ' + mbps.toFixed(1) + ' Mb/s（' + (n / 1e6).toFixed(0) + ' MB 用了 ' + ((performance.now() - t0) / 1000).toFixed(1) + ' 秒）。下面每个视频后面标出了按这个速度开播前大约要等多久。';
+  } catch (err) { if (!ctrl.signal.aborted) throw err; } finally { clearTimeout(stop); }
+  if (n < 1e6) throw new Error('20 秒内只下到 ' + (n / 1e6).toFixed(1) + ' MB');
+  return n * 8 / ((performance.now() - tFirst) / 1000) / 1e6;
+}
+document.getElementById('speed').onclick = async e => {
+  const out = document.getElementById('speed-out'); e.target.disabled = true;
+  document.querySelectorAll('.est').forEach(el => el.remove());
+  let a = 0, b = 0, msg = '';
+  out.textContent = '正在测香港服务器…';
+  try { a = await measure('/admin/speed?mb=24&key=' + encodeURIComponent(key)); msg += '香港服务器 ' + a.toFixed(1) + ' Mb/s'; }
+  catch (err) { msg += '香港服务器测速失败（' + err.message + '）'; }
+  if (R2_TEST) {
+    out.textContent = msg + '；正在测 Cloudflare…';
+    try { b = await measure(R2_TEST); msg += '；Cloudflare ' + b.toFixed(1) + ' Mb/s'; }
+    catch (err) { msg += '；Cloudflare 测速失败（多半是 R2 存储桶还没设置 CORS，见说明）'; }
+  } else msg += '；Cloudflare 这一路还没准备好（R2 未配置）';
+  const mbps = Math.max(a, b);
+  out.textContent = msg + (mbps ? '。Joey 的页面会自动用快的那一路，下面按 ' + mbps.toFixed(1) + ' Mb/s 估算每个视频开播前要等多久。' : '。');
+  e.target.disabled = false;
+  if (!mbps) return;
+  {
     document.querySelectorAll('.rate').forEach(el => {
       const b = +el.dataset.mbps, d = +el.dataset.dur, wait = Math.max(0, d * (b / mbps - 1));
-      el.insertAdjacentHTML('afterend', wait < 1 ? ' · 可以边下边播' : ' · <span class="wait">边下边播来不及，开播前约等 ' + Math.ceil(wait) + ' 秒（后台预加载好了就不用等）</span>');
+      el.insertAdjacentHTML('afterend', wait < 1 ? '<span class="est"> · 可以边下边播</span>' : '<span class="est"> · <span class="wait">边下边播来不及，开播前约等 ' + Math.ceil(wait) + ' 秒（后台预加载好了就不用等）</span></span>');
     });
-  } catch (err) { out.textContent = '测速失败：' + err.message; }
-  e.target.disabled = false;
+  }
 };
 </script>`);
 }));
 
-// Incompressible bytes for the speed test.
+// Incompressible bytes for the speed test. The same 24 MB also sits in R2, to test the Cloudflare route.
 const NOISE = crypto.randomBytes(1 << 20);
+const SPEED_KEY = 'speedtest/24mb.bin';
+async function ensureSpeedObject() {
+  if (!storage.enabled) return;
+  try { if ((await storage.size(SPEED_KEY)) === 24 * NOISE.length) return; } catch {}
+  await storage.putBuffer(SPEED_KEY, Buffer.concat(Array(24).fill(NOISE)), 'application/octet-stream');
+  log('stored', SPEED_KEY);
+}
 app.get('/admin/speed', admin, (req, res) => {
   let left = Math.min(Math.max(Number(req.query.mb) || 8, 1), 64);
   res.set({ 'Content-Type': 'application/octet-stream', 'Content-Length': left * NOISE.length, 'Cache-Control': 'no-store' });
@@ -350,18 +380,22 @@ app.get('/for-joey/:key', viewer, (req, res) => {
 app.get('/api/view/:key/wishes', viewer, wrap(async (req, res) => {
   const rank = w => crypto.createHash('sha1').update(VIEW_KEY + w.id).digest('hex');
   const ws = (await allWishes()).sort((a, b) => rank(a).localeCompare(rank(b)));
-  res.set('Cache-Control', 'no-store').json(ws.map(w => ({
+  res.set('Cache-Control', 'no-store').json(await Promise.all(ws.map(async w => ({
     id: w.id, name: w.name, message: w.message,
     cover: !!w.cover && w.cover.status !== 'uploading',
-    video: w.video && w.video.status !== 'uploading' ? videoView(w) : null,
-  })));
+    video: w.video && w.video.status !== 'uploading' ? await videoView(w) : null,
+  }))));
 }));
+// Each playable video has two addresses: this server, and (once backed up) the same file straight from Cloudflare
+// R2 through a link that expires. Joey's browser measures both and plays from whichever is faster where she is.
 // Prepared files have a name that changes whenever they are remade, so browsers may keep them forever.
-function videoView(w) {
+const ALT_TTL = 3 * 24 * 3600;
+async function videoView(w) {
   const v = w.video, p = v.play;
   if (playDone(v)) {
-    const base = `/media/${VIEW_KEY}/${playFile(w.id, v)}`;
-    return { ready: true, src: base + '.mp4', poster: base + '.jpg', duration: p.duration, width: p.width, height: p.height, size: p.size };
+    const file = playFile(w.id, v), base = `/media/${VIEW_KEY}/${file}`;
+    const alt = storage.enabled && p.synced ? await storage.presign(`play/${file}.mp4`, ALT_TTL).catch(() => null) : null;
+    return { ready: true, src: base + '.mp4', alt, poster: base + '.jpg', duration: p.duration, width: p.width, height: p.height, size: p.size };
   }
   if (gaveUp(v)) return { ready: true, src: `/api/view/${VIEW_KEY}/video/${w.id}`, poster: null, duration: 0, width: 0, height: 0, size: v.size };
   return { ready: false };
@@ -533,6 +567,7 @@ async function purgeOrphans(id, file) {
 const server = app.listen(PORT, '127.0.0.1', () => {
   console.log(`listening on 127.0.0.1:${PORT} · data in ${DATA} · R2 ${storage.enabled ? 'on (' + storage.bucket + ')' : 'OFF (local only)'}`);
   kick(); kickPlay();
+  ensureSpeedObject().catch(e => console.error('speed test file:', e.message));
 });
 server.requestTimeout = 0; // slow mobile uploads must not be cut off
 server.headersTimeout = 60_000;

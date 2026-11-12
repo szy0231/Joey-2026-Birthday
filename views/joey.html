@@ -368,12 +368,47 @@ h1{margin:0;font:italic 500 clamp(56px,17vw,92px)/1 var(--f-latin);letter-spacin
        streamed  it plays from the server, but only starts once enough is buffered that the rest will arrive
                  before it is needed (worked out from the measured download speed and the video's bitrate).
      Background fetching starts when the envelope opens, takes the opened card's video first, and stays within
-     a memory budget so a phone is never asked to hold more than it can. */
+     a memory budget so a phone is never asked to hold more than it can.
+     Each video can come from two places: the server, or straight from Cloudflare (alt). Right after the envelope
+     opens, a few MB are fetched from both at once and the faster one is used from then on. */
   const player = $('player'), coarse = matchMedia('(pointer:coarse)').matches;
   const BUDGET = coarse ? 400e6 : 1500e6, ONE = coarse ? 160e6 : 700e6;   // bytes kept in memory: in total, per video
   const saver = !!(navigator.connection && navigator.connection.saveData);
   const store = new Map();   // wish id -> { state: idle | loading | ready | failed, got, url, ctrl, done }
   let used = 0, rate = 0, streaming = false, wanted = null, pumping = false, session = null;
+  let useAlt = false, probing = null, routeKnown = false;
+  const srcOf = w => (useAlt && w.video.alt ? w.video.alt : w.video.src);
+  const altFailed = () => { if (useAlt) { useAlt = false; console.warn('Cloudflare route failed; using the server'); } };
+  // Downloads up to `bytes` of url; t.rate() is bytes per second so far (0 until enough has arrived).
+  function trial(url, bytes){
+    const t = { n: 0, tFirst: 0, ctrl: new AbortController() };
+    t.rate = () => { const secs = t.tFirst ? (performance.now() - t.tFirst) / 1000 : 0; return t.n > 300e3 && secs > .05 ? t.n / secs : 0; };
+    t.done = (async () => {
+      try {
+        const r = await fetch(url, { headers: { Range: 'bytes=0-' + (bytes - 1) }, signal: t.ctrl.signal, cache: 'no-store' });
+        if (!r.ok || !r.body) return false;
+        const reader = r.body.getReader();
+        for (;;) { const { done, value } = await reader.read(); if (done) break; if (!t.tFirst) t.tFirst = performance.now(); t.n += value.length; }
+        return true;
+      } catch (e) { return false; }
+    })();
+    return t;
+  }
+  // Fetch the start of one video from both places at once; as soon as either has finished (or 6 s have passed),
+  // compare how fast each was going and stop both.
+  function chooseRoute(){
+    return probing = probing || (async () => {
+      const w = wishes.find(x => x.video && x.video.ready && x.video.alt && x.video.size > 6e6); if (!w) { routeKnown = true; return; }
+      const a = trial(w.video.src, 6 << 20), b = trial(w.video.alt, 6 << 20);
+      const firstOk = new Promise(r => { a.done.then(ok => ok && r()); b.done.then(ok => ok && r()); });   // a failure does not end the race
+      await Promise.race([Promise.all([a.done, b.done]), firstOk.then(() => new Promise(r => setTimeout(r, 150))), new Promise(r => setTimeout(r, 6000))]);
+      const ra = a.rate(), rb = b.rate(); a.ctrl.abort(); b.ctrl.abort();
+      useAlt = rb > ra * 1.15;
+      sample(Math.max(ra, rb) * 1.6);                                 // the two ran side by side, sharing the line
+      routeKnown = true;
+      console.info('route:', useAlt ? 'Cloudflare' : 'server', '| server', (ra * 8 / 1e6).toFixed(1), 'Mb/s | Cloudflare', (rb * 8 / 1e6).toFixed(1), 'Mb/s');
+    })();
+  }
   const entry = id => { if (!store.has(id)) store.set(id, { state: 'idle', got: 0 }); return store.get(id); };
   const sample = bps => { if (bps > 0 && isFinite(bps)) rate = rate ? rate * .6 + bps * .4 : bps; };   // bytes per second
   const fits = w => !!w.video && w.video.ready && w.video.size <= ONE && used + w.video.size <= BUDGET;
@@ -383,7 +418,8 @@ h1{margin:0;font:italic 500 clamp(56px,17vw,92px)/1 var(--f-latin);letter-spacin
     e.state = 'loading'; e.got = 0; e.ctrl = new AbortController();
     return e.done = (async () => {
       try {
-        const r = await fetch(w.video.src, { signal: e.ctrl.signal }); if (!r.ok || !r.body) throw new Error('http ' + r.status);
+        e.from = srcOf(w);
+        const r = await fetch(e.from, { signal: e.ctrl.signal }); if (!r.ok || !r.body) throw new Error('http ' + r.status);
         const reader = r.body.getReader(), parts = []; let t = performance.now(), n = 0;
         for (;;) {
           const { done, value } = await reader.read(); if (done) break;
@@ -392,12 +428,18 @@ h1{margin:0;font:italic 500 clamp(56px,17vw,92px)/1 var(--f-latin);letter-spacin
           if (now - t > 700) { sample(n / ((now - t) / 1000)); t = now; n = 0; }
         }
         e.url = URL.createObjectURL(new Blob(parts, { type: 'video/mp4' })); e.state = 'ready'; used += e.got;
-      } catch (err) { e.state = e.ctrl.signal.aborted ? 'idle' : 'failed'; e.got = 0; }
+      } catch (err) {
+        e.got = 0;
+        if (e.ctrl.signal.aborted) e.state = 'idle';
+        else if (e.from !== w.video.src) { altFailed(); e.state = 'idle'; }   // try again from the server
+        else e.state = 'failed';
+      }
     })();
   }
   const stopPulls = keep => store.forEach((e, id) => { if (e.state === 'loading' && id !== keep) e.ctrl.abort(); });
   async function pump(){
     if (pumping || saver) return; pumping = true;
+    await chooseRoute();
     for (;;) {
       if (streaming) { await new Promise(r => setTimeout(r, 400)); continue; }
       const next = [wanted, ...wishes].find(w => w && fits(w) && entry(w.id).state === 'idle');
@@ -453,7 +495,7 @@ h1{margin:0;font:italic 500 clamp(56px,17vw,92px)/1 var(--f-latin);letter-spacin
       ses.stall = setTimeout(() => { if (!hold && !player.paused && player.readyState < 3) { hold = true; player.pause(); buf(0, '正在缓冲'); } }, 700);
     };
     if (hold) { buf(0); player.volume = 0; } else unbuf();
-    player.src = v.src;
+    ses.from = srcOf(w); player.src = ses.from;
     const p = player.play(); if (p && p.catch) p.catch(() => { hold = false; unbuf(); });
     ses.timer = setInterval(() => {
       const now = performance.now(), t = player.currentTime, end = bufferedEnd(t), dur = isFinite(player.duration) && player.duration ? player.duration : v.duration;
@@ -480,10 +522,12 @@ h1{margin:0;font:italic 500 clamp(56px,17vw,92px)/1 var(--f-latin);letter-spacin
     player.onerror = () => {                                         // a file played from memory failed: play it from the server
       if (session !== ses) return;
       if (player.src.startsWith('blob:')) { clearInterval(ses.timer); stream(w, ses); }
+      else if (ses.from && ses.from !== v.src) { clearInterval(ses.timer); clearTimeout(ses.stall); altFailed(); stream(w, ses); }
       else { clearInterval(ses.timer); buf(0, '这段视频打不开'); $('buf-skip').hidden = true; }
     };
     $('buf-skip').hidden = false;
     if (e.state === 'ready') return playNow(e.url);
+    if (!routeKnown && v.alt) { buf(0); return chooseRoute().then(() => { if (session === ses) openVideo(w); }); }   // tapped before the route was chosen
     const streamWait = rate && bps ? Math.max(0, v.duration * (bps / rate - 1)) : 0, fetchWait = rate ? (v.size - e.got) / rate : Infinity;
     if (e.state === 'loading' && fetchWait <= streamWait + 3) return waitForFetch(w, e, ses);   // nearly there: finish, then play from memory
     stream(w, ses);

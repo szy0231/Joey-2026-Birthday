@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import { pipeline } from 'node:stream/promises';
 import { S3Client, DeleteObjectCommand, GetObjectCommand, HeadObjectCommand, ListObjectsV2Command, PutObjectCommand } from '@aws-sdk/client-s3';
 import { Upload } from '@aws-sdk/lib-storage';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
 export function makeStorage(env) {
   const { R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET } = env;
@@ -26,6 +27,13 @@ export function makeStorage(env) {
         client: s3, queueSize: 2, partSize: 16 * 1024 ** 2,
         params: { Bucket: R2_BUCKET, Key: key, Body: fs.createReadStream(file), ContentType: contentType },
       }).done();
+    },
+    async putBuffer(key, body, contentType) {
+      await s3.send(new PutObjectCommand({ Bucket: R2_BUCKET, Key: key, Body: body, ContentType: contentType }));
+    },
+    // A time-limited link a browser can download straight from Cloudflare, without the bucket being public.
+    presign(key, seconds) {
+      return getSignedUrl(s3, new GetObjectCommand({ Bucket: R2_BUCKET, Key: key }), { expiresIn: seconds });
     },
     async putJSON(key, obj) {
       await s3.send(new PutObjectCommand({ Bucket: R2_BUCKET, Key: key, Body: JSON.stringify(obj, null, 2), ContentType: 'application/json; charset=utf-8' }));
