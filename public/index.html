@@ -7,17 +7,17 @@
 <meta name="theme-color" content="#3B0B19">
 <meta property="og:title" content="Dear Joey">
 <title>Joey 的生日信箱</title>
-<link rel="preload" href="/fonts/cormorant-500i.woff2?v=4" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/fonts/cormorant-500i.woff2?v=5" as="font" type="font/woff2" crossorigin>
 <style>
 /* Fonts are self-hosted so the page never waits on a third-party host (some are unreachable from mainland China).
    The Chinese serif is subset to the characters in this file: rerun scripts/subset-fonts.py after changing copy. */
-@font-face{font-family:"Cormorant Garamond";font-weight:500;font-style:normal;font-display:swap;src:url(/fonts/cormorant-500.woff2?v=4) format("woff2")}
-@font-face{font-family:"Cormorant Garamond";font-weight:500;font-style:italic;font-display:swap;src:url(/fonts/cormorant-500i.woff2?v=4) format("woff2")}
-@font-face{font-family:"Cormorant Garamond";font-weight:600;font-style:italic;font-display:swap;src:url(/fonts/cormorant-600i.woff2?v=4) format("woff2")}
-@font-face{font-family:"Noto Serif SC";font-weight:300;font-display:swap;src:url(/fonts/serif-latin-300.woff2?v=4) format("woff2");unicode-range:U+0000-024F}
-@font-face{font-family:"Noto Serif SC";font-weight:600;font-display:swap;src:url(/fonts/serif-latin-600.woff2?v=4) format("woff2");unicode-range:U+0000-024F}
-@font-face{font-family:"Noto Serif SC";font-weight:300;font-display:swap;src:url(/fonts/serif-sc-300.woff2?v=4) format("woff2");unicode-range:U+2000-FFFF}
-@font-face{font-family:"Noto Serif SC";font-weight:600;font-display:swap;src:url(/fonts/serif-sc-600.woff2?v=4) format("woff2");unicode-range:U+2000-FFFF}
+@font-face{font-family:"Cormorant Garamond";font-weight:500;font-style:normal;font-display:swap;src:url(/fonts/cormorant-500.woff2?v=5) format("woff2")}
+@font-face{font-family:"Cormorant Garamond";font-weight:500;font-style:italic;font-display:swap;src:url(/fonts/cormorant-500i.woff2?v=5) format("woff2")}
+@font-face{font-family:"Cormorant Garamond";font-weight:600;font-style:italic;font-display:swap;src:url(/fonts/cormorant-600i.woff2?v=5) format("woff2")}
+@font-face{font-family:"Noto Serif SC";font-weight:300;font-display:swap;src:url(/fonts/serif-latin-300.woff2?v=5) format("woff2");unicode-range:U+0000-024F}
+@font-face{font-family:"Noto Serif SC";font-weight:600;font-display:swap;src:url(/fonts/serif-latin-600.woff2?v=5) format("woff2");unicode-range:U+0000-024F}
+@font-face{font-family:"Noto Serif SC";font-weight:300;font-display:swap;src:url(/fonts/serif-sc-300.woff2?v=5) format("woff2");unicode-range:U+2000-FFFF}
+@font-face{font-family:"Noto Serif SC";font-weight:600;font-display:swap;src:url(/fonts/serif-sc-600.woff2?v=5) format("woff2");unicode-range:U+2000-FFFF}
 :root{padding:env(safe-area-inset-top,0px) 0 env(safe-area-inset-bottom,0px)}
 body{margin:0}
 [hidden]{display:none!important}
@@ -298,16 +298,6 @@ h1 span{font-size:clamp(19px,5.2vw,22px);letter-spacing:.56em;text-indent:.56em}
       <button class="btn wide" id="name-next">下一步</button>
     </section>
 
-    <!-- message -->
-    <section class="screen" id="s-msg" hidden>
-      <div class="head"><h2>发挥文采</h2><p class="sub">欢迎各种 language</p></div>
-      <div class="letter" id="letter">
-        <div class="lt-top"><i aria-hidden="true">J.</i></div>
-        <textarea id="msg" aria-label="祝福内容"></textarea>
-      </div>
-      <button class="btn wide" id="msg-next">下一步</button>
-    </section>
-
     <!-- cover photo -->
     <section class="screen" id="s-cover" hidden>
       <div class="head"><h2>明信片封面</h2><p class="sub">选一张照片，印在明信片正面</p></div>
@@ -323,6 +313,16 @@ h1 span{font-size:clamp(19px,5.2vw,22px);letter-spacing:.56em;text-indent:.56em}
         <button class="btn wide" id="cover-next">下一步</button>
         <button class="link" id="cover-skip">不放照片</button>
       </div>
+    </section>
+
+    <!-- message -->
+    <section class="screen" id="s-msg" hidden>
+      <div class="head"><h2>发挥文采</h2><p class="sub">欢迎各种 language</p></div>
+      <div class="letter" id="letter">
+        <div class="lt-top"><i aria-hidden="true">J.</i></div>
+        <textarea id="msg" aria-label="祝福内容"></textarea>
+      </div>
+      <button class="btn wide" id="msg-next">下一步</button>
     </section>
 
     <!-- video -->
@@ -380,7 +380,7 @@ h1 span{font-size:clamp(19px,5.2vw,22px);letter-spacing:.56em;text-indent:.56em}
 <script>
 (() => {
   const $ = id => document.getElementById(id);
-  const order = ['welcome','name','msg','cover','video','send'];
+  const order = ['welcome','name','cover','msg','video','send'];
   const state = { step:'welcome', file:null, url:null, busy:false, sound:true, clientId:null, token:null, cover:null, coverUrl:null };
   const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
   document.addEventListener('touchstart', () => {}, {passive:true}); // enables :active on iOS
@@ -445,7 +445,7 @@ h1 span{font-size:clamp(19px,5.2vw,22px);letter-spacing:.56em;text-indent:.56em}
   /* ---------- name ---------- */
   function nameNext(){
     if (!$('name').value.trim()) return refuse($('name'));
-    fx.tap(); $('name').blur(); go('msg');
+    fx.tap(); $('name').blur(); go('cover');
   }
   $('name-next').onclick = nameNext;
   $('name').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.isComposing) nameNext(); });
@@ -465,7 +465,7 @@ h1 span{font-size:clamp(19px,5.2vw,22px);letter-spacing:.56em;text-indent:.56em}
   });
   $('msg-next').onclick = () => {
     if (!msg.value.trim()) return refuse($('letter'));
-    fx.tap(); msg.blur(); go('cover');
+    fx.tap(); msg.blur(); go('video');
   };
 
   /* ---------- cover photo ---------- */
@@ -499,9 +499,9 @@ h1 span{font-size:clamp(19px,5.2vw,22px);letter-spacing:.56em;text-indent:.56em}
   $('photo').addEventListener('change', e => setCover(e.target.files[0]));
   $('cover-next').onclick = () => {
     if (!state.cover) return refuse($('cover'), '先选一张照片，或点下面不放照片');
-    fx.tap(); go('video');
+    fx.tap(); go('msg');
   };
-  $('cover-skip').onclick = () => { fx.soft(); clearCover(); go('video'); };
+  $('cover-skip').onclick = () => { fx.soft(); clearCover(); go('msg'); };
 
   /* ---------- video ---------- */
   const fmtSize = b => b > 1e9 ? (b/1e9).toFixed(2) + ' GB' : (b/1e6).toFixed(1) + ' MB';

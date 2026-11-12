@@ -7,17 +7,17 @@
 <meta name="referrer" content="no-referrer">
 <meta name="theme-color" content="#3B0B19">
 <title>Dear Joey</title>
-<link rel="preload" href="/fonts/cormorant-500i.woff2?v=4" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/fonts/cormorant-500i.woff2?v=5" as="font" type="font/woff2" crossorigin>
 <style>
 /* Joey's page. A sealed envelope opens onto a ring of numbered wax seals, one per friend. Nothing about a
    friend shows until a seal is touched; then their postcard grows out of it as a soft rounded card.
    Fonts are self-hosted; the Chinese serif is subset to this file's own characters (scripts/subset-fonts.py),
    so anything a friend typed is set in system faces instead. */
-@font-face{font-family:"Cormorant Garamond";font-weight:500;font-style:normal;font-display:swap;src:url(/fonts/cormorant-500.woff2?v=4) format("woff2")}
-@font-face{font-family:"Cormorant Garamond";font-weight:500;font-style:italic;font-display:swap;src:url(/fonts/cormorant-500i.woff2?v=4) format("woff2")}
-@font-face{font-family:"Cormorant Garamond";font-weight:600;font-style:italic;font-display:swap;src:url(/fonts/cormorant-600i.woff2?v=4) format("woff2")}
-@font-face{font-family:"Noto Serif SC";font-weight:300;font-display:swap;src:url(/fonts/serif-latin-300.woff2?v=4) format("woff2");unicode-range:U+0000-024F}
-@font-face{font-family:"Noto Serif SC";font-weight:300;font-display:swap;src:url(/fonts/serif-sc-300.woff2?v=4) format("woff2");unicode-range:U+2000-FFFF}
+@font-face{font-family:"Cormorant Garamond";font-weight:500;font-style:normal;font-display:swap;src:url(/fonts/cormorant-500.woff2?v=5) format("woff2")}
+@font-face{font-family:"Cormorant Garamond";font-weight:500;font-style:italic;font-display:swap;src:url(/fonts/cormorant-500i.woff2?v=5) format("woff2")}
+@font-face{font-family:"Cormorant Garamond";font-weight:600;font-style:italic;font-display:swap;src:url(/fonts/cormorant-600i.woff2?v=5) format("woff2")}
+@font-face{font-family:"Noto Serif SC";font-weight:300;font-display:swap;src:url(/fonts/serif-latin-300.woff2?v=5) format("woff2");unicode-range:U+0000-024F}
+@font-face{font-family:"Noto Serif SC";font-weight:300;font-display:swap;src:url(/fonts/serif-sc-300.woff2?v=5) format("woff2");unicode-range:U+2000-FFFF}
 :root{
   --wine:#3B0B19; --wine-deep:#25060F; --wine-soft:#5C1B2C;
   --pearl:#F7ECE6; --pearl-dim:rgba(247,236,230,.62);
@@ -123,13 +123,14 @@ h1{margin:0;font:italic 500 clamp(56px,17vw,92px)/1 var(--f-latin);letter-spacin
 /* ---------- the postcard ---------- */
 .veil{position:fixed;inset:0;z-index:30;background:rgba(37,6,15,.82);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
   display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;
-  padding:calc(16px + env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) calc(16px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));
+  padding:calc(34px + env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) calc(16px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));
   animation:fade .35s ease both}
 .veil.closing{animation:out .28s ease-in both}
-.card{width:min(100%,360px);max-height:calc(100% - 64px);display:flex;overflow:hidden;
-  background:linear-gradient(180deg,#FFFAF6,var(--paper));color:var(--ink);border-radius:40px;
-  box-shadow:0 50px 80px -30px rgba(0,0,0,.85),0 16px 30px -14px rgba(0,0,0,.6);
+.cardwrap{position:relative;width:min(100% - 32px,360px);max-height:calc(100% - 64px);display:flex;flex-direction:column;
   transform-origin:var(--ox,50%) var(--oy,50%);animation:bloom .7s cubic-bezier(.2,.9,.25,1.05) both}
+.card{flex:0 1 auto;min-height:0;display:flex;overflow:hidden;
+  background:linear-gradient(180deg,#FFFAF6,var(--paper));color:var(--ink);border-radius:40px;
+  box-shadow:0 50px 80px -30px rgba(0,0,0,.85),0 16px 30px -14px rgba(0,0,0,.6)}
 @keyframes bloom{from{opacity:0;transform:scale(.2)}}
 .scroll{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:12px 12px 26px;display:flex;flex-direction:column;gap:16px;
   scrollbar-width:thin;scrollbar-color:rgba(168,128,77,.4) transparent}
@@ -142,15 +143,27 @@ h1{margin:0;font:italic 500 clamp(56px,17vw,92px)/1 var(--f-latin);letter-spacin
 .from i{font:italic 500 18px/1 var(--f-latin);color:var(--gold-lo)}
 .from b{font:400 23px/1.4 var(--f-hand);letter-spacing:.06em;overflow-wrap:anywhere}
 .msg{padding:0 16px;font:400 17px/1.95 var(--f-hand);white-space:pre-wrap;overflow-wrap:anywhere}
-.vthumb{position:relative;flex:none;margin:0 4px;aspect-ratio:16/10;border:0;padding:0;border-radius:24px;overflow:hidden;background:var(--wine) center/cover;display:grid;place-items:center;
-  box-shadow:0 14px 24px -14px rgba(37,6,15,.9);transition:transform .25s var(--ease)}
-.vthumb::before{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(37,6,15,.15),rgba(37,6,15,.55))}
-.vthumb:active{transform:scale(.97)}
-.vthumb .go{position:relative;width:60px;height:60px;border-radius:50%;border:1px solid rgba(247,236,230,.85);display:grid;place-items:center;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);transition:transform .3s var(--ease)}
-.vthumb:hover .go{transform:scale(1.08)}
-.vthumb .go svg{width:16px;height:16px;fill:var(--pearl);margin-left:3px}
-.vthumb .dur{position:absolute;right:16px;bottom:10px;font:500 15px/1 var(--f-latin);letter-spacing:.1em;color:var(--pearl);font-variant-numeric:lining-nums}
-.soon{margin:0;text-align:center;font-size:12px;letter-spacing:.2em;color:rgba(74,20,35,.5)}
+
+/* the video: a small stamp stuck on the postcard's corner, opened only when tapped */
+.stamp{position:absolute;top:-18px;right:-16px;z-index:2;width:63px;height:81px;border:0;padding:0;background:none;
+  filter:drop-shadow(0 10px 14px rgba(0,0,0,.5));transform:rotate(7deg);transition:transform .35s var(--ease);
+  animation:land .6s cubic-bezier(.3,1.5,.5,1) .55s backwards}
+@keyframes land{from{opacity:0;transform:translate(12px,-16px) rotate(-16deg) scale(1.6)}}
+.stamp:hover{transform:rotate(0) scale(1.07)}
+.stamp:active{transform:rotate(4deg) scale(.92)}
+.stamp i{position:absolute;inset:0;padding:5px;background:linear-gradient(180deg,#FFFAF6,#F1E4DA);
+  -webkit-mask:linear-gradient(#000 0 0) content-box,radial-gradient(3.3px at 50% 50%,#0000 95%,#000) -4.5px -4.5px/9px 9px;
+          mask:linear-gradient(#000 0 0) content-box,radial-gradient(3.3px at 50% 50%,#0000 95%,#000) -4.5px -4.5px/9px 9px}
+.stamp b{position:absolute;inset:8px;border-radius:1px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;
+  background:radial-gradient(circle at 50% 32%,#6f2539,var(--wine) 78%);box-shadow:inset 0 0 0 1px rgba(216,185,140,.5),inset 0 0 0 4px var(--wine),inset 0 0 0 5px rgba(216,185,140,.28)}
+.stamp b svg{width:15px;height:15px;fill:var(--gold-hi);margin-left:2px;transition:transform .3s var(--ease)}
+.stamp:hover b svg{transform:scale(1.15)}
+.stamp b span{font:500 12px/1 var(--f-latin);letter-spacing:.08em;color:var(--gold);font-variant-numeric:lining-nums}
+.stamp.wait b{filter:saturate(.4) brightness(.85)}
+.stamp.wait b svg{fill:none;stroke:var(--gold);stroke-width:1.4;stroke-linecap:round}
+.vnote{margin:-4px 0 0;font-size:12px;letter-spacing:.24em;color:var(--pearl-dim);animation:fade .3s ease both}
+.shake{animation:shake .4s}
+@keyframes shake{20%{transform:rotate(7deg) translateX(-5px)}40%{transform:rotate(7deg) translateX(4px)}60%{transform:rotate(7deg) translateX(-3px)}80%{transform:rotate(7deg) translateX(2px)}}
 
 .modal{position:fixed;inset:0;z-index:35;background:rgba(14,2,6,.96);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;
   padding:calc(68px + env(safe-area-inset-top,0px)) 16px calc(20px + env(safe-area-inset-bottom,0px));animation:fade .3s ease both}
@@ -199,7 +212,11 @@ h1{margin:0;font:italic 500 clamp(56px,17vw,92px)/1 var(--f-latin);letter-spacin
 </div>
 
 <div class="veil" id="veil" hidden>
-  <article class="card" id="card"></article>
+  <div class="cardwrap" id="cardwrap">
+    <article class="card" id="card"></article>
+    <button class="stamp" id="stamp" aria-label="播放视频" title="播放视频" hidden><i></i><b></b></button>
+  </div>
+  <p class="vnote" id="vnote" hidden>视频还在路上，晚一点再来看</p>
   <button class="icon-btn" id="veil-x" aria-label="关闭"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
 </div>
 <div class="modal" id="modal" hidden>
@@ -249,6 +266,7 @@ h1{margin:0;font:italic 500 clamp(56px,17vw,92px)/1 var(--f-latin);letter-spacin
     hover(k){ const f = SCALE[k % SCALE.length]; tone(f, f, .5, 'sine', .018); },   // every seal has its own note
     pick(k){ const f = SCALE[k % SCALE.length]; tone(130, 60, .18, 'triangle', .14); tone(f, f, .9, 'sine', .05, .05); tone(f * 1.5, f * 1.5, 1.1, 'sine', .03, .14); buzz(12); },
     close(){ tone(520, 380, .14, 'sine', .03); buzz(5); },
+    nope(){ tone(196, 165, .2, 'sine', .06); buzz([10,40,10]); },
     open(){ tone(130, 50, .24, 'triangle', .26); [659,784,988,1319].forEach((f,i) => tone(f, f, .9, 'sine', .04, .2 + i*.11)); buzz(30); }
   };
 
@@ -316,6 +334,7 @@ h1{margin:0;font:italic 500 clamp(56px,17vw,92px)/1 var(--f-latin);letter-spacin
 
   /* ---------- opening a postcard ---------- */
   const PLAY = '<svg viewBox="0 0 12 14"><path d="M0 0l12 7-12 7z"/></svg>';
+  const CLOCK = '<svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.5"/><path d="M8 4.5V8l2.5 1.6"/></svg>';
   let openK = -1;
   field.addEventListener('pointerover', e => { const it = e.target.closest('.item'); if (it && e.pointerType === 'mouse' && !it.contains(e.relatedTarget)) fx.hover(+it.dataset.k); });
   field.addEventListener('click', e => {
@@ -324,13 +343,13 @@ h1{margin:0;font:italic 500 clamp(56px,17vw,92px)/1 var(--f-latin);letter-spacin
     card.innerHTML = '<div class="scroll">'
       + (w.cover ? `<div class="top"><img alt="" src="${API}/cover/${w.id}" onload="this.classList.add('on')"></div>` : `<div class="top plain"><div class="mono">${esc([...w.name][0] || '')}</div></div>`)
       + `<p class="from"><i>from</i><b>${esc(w.name)}</b></p><div class="msg">${esc(w.message)}</div>`
-      + (v ? (v.ready
-          ? `<button class="vthumb" id="play" aria-label="播放视频"${v.poster ? ` style="background-image:url(${v.poster})"` : ''}><span class="go">${PLAY}</span>${v.duration ? `<span class="dur">${clock(v.duration)}</span>` : ''}</button>`
-          : '<p class="soon">视频还在路上，晚一点再来看</p>') : '')
       + '</div>';
+    const stamp = $('stamp');
+    stamp.hidden = !v; stamp.classList.toggle('wait', !!v && !v.ready); $('vnote').hidden = true;
+    if (v) stamp.querySelector('b').innerHTML = v.ready ? PLAY + (v.duration ? `<span>${clock(v.duration)}</span>` : '') : CLOCK + '<span>稍后</span>';
     $('veil').classList.remove('closing'); $('veil').hidden = false;
-    const c = card.getBoundingClientRect();                          // grow out of the seal that was touched
-    card.style.setProperty('--ox', (b.left + b.width / 2 - c.left) + 'px'); card.style.setProperty('--oy', (b.top + b.height / 2 - c.top) + 'px');
+    const wrap = $('cardwrap'), c = wrap.getBoundingClientRect();    // grow out of the seal that was touched
+    wrap.style.setProperty('--ox', (b.left + b.width / 2 - c.left) + 'px'); wrap.style.setProperty('--oy', (b.top + b.height / 2 - c.top) + 'px');
     fx.pick(k); markRead(w.id); it.classList.add('read');
     if (v && v.ready) prefer(w);                                     // start fetching this card's video right away
     $('veil-x').focus({ preventScroll: true });
@@ -477,7 +496,12 @@ h1{margin:0;font:italic 500 clamp(56px,17vw,92px)/1 var(--f-latin);letter-spacin
     player.pause(); player.removeAttribute('src'); player.load(); $('buf').hidden = true; $('modal').hidden = true;
     streaming = false; pump();
   }
-  $('card').addEventListener('click', e => { if (e.target.closest('#play')) { fx.tap(); openVideo(wishes[openK]); } });
+  $('stamp').onclick = () => {
+    const w = wishes[openK]; if (!w || !w.video) return;
+    if (w.video.ready) { fx.tap(); openVideo(w); return; }
+    fx.nope(); $('vnote').hidden = false;
+    const st = $('stamp'); st.classList.remove('shake'); void st.offsetWidth; st.classList.add('shake');
+  };
   $('buf-skip').onclick = () => { if (session && session.skip) session.skip(); };
   $('modal-x').onclick = closeVideo;
   $('modal').addEventListener('click', e => { if (e.target === $('modal')) closeVideo(); });
