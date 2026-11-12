@@ -7,17 +7,17 @@
 <meta name="theme-color" content="#3B0B19">
 <meta property="og:title" content="Dear Joey">
 <title>Joey 的生日信箱</title>
-<link rel="preload" href="/fonts/cormorant-500i.woff2?v=5" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/fonts/cormorant-500i.woff2?v=7" as="font" type="font/woff2" crossorigin>
 <style>
 /* Fonts are self-hosted so the page never waits on a third-party host (some are unreachable from mainland China).
    The Chinese serif is subset to the characters in this file: rerun scripts/subset-fonts.py after changing copy. */
-@font-face{font-family:"Cormorant Garamond";font-weight:500;font-style:normal;font-display:swap;src:url(/fonts/cormorant-500.woff2?v=5) format("woff2")}
-@font-face{font-family:"Cormorant Garamond";font-weight:500;font-style:italic;font-display:swap;src:url(/fonts/cormorant-500i.woff2?v=5) format("woff2")}
-@font-face{font-family:"Cormorant Garamond";font-weight:600;font-style:italic;font-display:swap;src:url(/fonts/cormorant-600i.woff2?v=5) format("woff2")}
-@font-face{font-family:"Noto Serif SC";font-weight:300;font-display:swap;src:url(/fonts/serif-latin-300.woff2?v=5) format("woff2");unicode-range:U+0000-024F}
-@font-face{font-family:"Noto Serif SC";font-weight:600;font-display:swap;src:url(/fonts/serif-latin-600.woff2?v=5) format("woff2");unicode-range:U+0000-024F}
-@font-face{font-family:"Noto Serif SC";font-weight:300;font-display:swap;src:url(/fonts/serif-sc-300.woff2?v=5) format("woff2");unicode-range:U+2000-FFFF}
-@font-face{font-family:"Noto Serif SC";font-weight:600;font-display:swap;src:url(/fonts/serif-sc-600.woff2?v=5) format("woff2");unicode-range:U+2000-FFFF}
+@font-face{font-family:"Cormorant Garamond";font-weight:500;font-style:normal;font-display:swap;src:url(/fonts/cormorant-500.woff2?v=7) format("woff2")}
+@font-face{font-family:"Cormorant Garamond";font-weight:500;font-style:italic;font-display:swap;src:url(/fonts/cormorant-500i.woff2?v=7) format("woff2")}
+@font-face{font-family:"Cormorant Garamond";font-weight:600;font-style:italic;font-display:swap;src:url(/fonts/cormorant-600i.woff2?v=7) format("woff2")}
+@font-face{font-family:"Noto Serif SC";font-weight:300;font-display:swap;src:url(/fonts/serif-latin-300.woff2?v=7) format("woff2");unicode-range:U+0000-024F}
+@font-face{font-family:"Noto Serif SC";font-weight:600;font-display:swap;src:url(/fonts/serif-latin-600.woff2?v=7) format("woff2");unicode-range:U+0000-024F}
+@font-face{font-family:"Noto Serif SC";font-weight:300;font-display:swap;src:url(/fonts/serif-sc-300.woff2?v=7) format("woff2");unicode-range:U+2000-FFFF}
+@font-face{font-family:"Noto Serif SC";font-weight:600;font-display:swap;src:url(/fonts/serif-sc-600.woff2?v=7) format("woff2");unicode-range:U+2000-FFFF}
 :root{padding:env(safe-area-inset-top,0px) 0 env(safe-area-inset-bottom,0px)}
 body{margin:0}
 [hidden]{display:none!important}
@@ -66,7 +66,20 @@ button{cursor:pointer;touch-action:manipulation}
 .shell{position:relative;z-index:2;width:100%;max-width:480px;min-height:100%;display:flex;flex-direction:column;padding-block:12px 18px}
 
 /* top bar */
-.bar{display:flex;align-items:center;justify-content:space-between;height:48px}
+.bar{position:relative;display:flex;align-items:center;justify-content:space-between;height:48px}
+.bar-r{display:flex;align-items:center;gap:8px}
+/* language switch: a gold slider behind the active option */
+.lang{position:relative;display:flex;align-items:center;height:36px;padding:3px;border:1px solid var(--hair);border-radius:999px;background:transparent;
+  transition:border-color .25s,transform .18s var(--ease)}
+.lang:hover{border-color:var(--gold)}
+.lang:active{transform:scale(.93)}
+.lang::before{content:"";position:absolute;top:3px;left:3px;width:30px;height:28px;border-radius:999px;background:var(--foil);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.5);transition:transform .4s var(--ease)}
+html[lang=en] .lang::before{transform:translateX(30px)}
+.lang span{position:relative;width:30px;height:28px;display:grid;place-items:center;color:var(--pearl-dim);transition:color .3s}
+.lang span[data-l=zh]{font:400 13px/1 var(--f-serif)}
+.lang span[data-l=en]{font:600 12px/1 var(--f-latin);letter-spacing:.04em}
+html[lang=zh-CN] .lang span[data-l=zh],html[lang=en] .lang span[data-l=en]{color:var(--wine-deep)}
 .icon-btn{
   width:44px;height:44px;border-radius:50%;border:1px solid var(--hair);background:transparent;
   display:grid;place-items:center;transition:transform .18s var(--ease),background .25s,border-color .25s,opacity .3s;
@@ -75,7 +88,7 @@ button{cursor:pointer;touch-action:manipulation}
 .icon-btn:active{transform:scale(.88);background:rgba(216,185,140,.16)}
 .icon-btn svg{width:18px;height:18px;stroke:var(--gold);fill:none;stroke-width:1.4;stroke-linecap:round;stroke-linejoin:round}
 .icon-btn.ghost{opacity:0;pointer-events:none}
-.step{font:500 17px/1 var(--f-latin);letter-spacing:.22em;color:var(--gold);transition:opacity .4s;font-variant-numeric:lining-nums}
+.step{position:absolute;left:50%;transform:translateX(-50%);white-space:nowrap;font:500 17px/1 var(--f-latin);letter-spacing:.22em;color:var(--gold);transition:opacity .4s;font-variant-numeric:lining-nums}
 .step i{font-style:normal;color:var(--pearl-dim)}
 .rule{height:1px;background:var(--hair);margin-top:10px;transition:opacity .4s}
 .rule b{display:block;height:1px;background:var(--gold-hi);transform:scaleX(0);transform-origin:left;transition:transform .8s var(--ease)}
@@ -177,7 +190,7 @@ h1 span{font-size:clamp(19px,5.2vw,22px);letter-spacing:.56em;text-indent:.56em}
 /* cover photo */
 .cover-wrap{display:flex;flex-direction:column;align-items:center;gap:14px}
 .cover{
-  position:relative;display:grid;place-items:center;width:min(100%,290px,34vh);aspect-ratio:4/5;padding:10px;cursor:pointer;
+  position:relative;display:grid;place-items:center;width:min(100%,290px,30vh);aspect-ratio:4/5;padding:10px;cursor:pointer;
   background:linear-gradient(180deg,#FFFAF6,var(--paper));border-radius:3px;transform:rotate(-1.5deg);
   box-shadow:0 40px 60px -30px rgba(0,0,0,.75),0 12px 24px -12px rgba(0,0,0,.5);transition:transform .45s var(--ease);
 }
@@ -248,10 +261,29 @@ h1 span{font-size:clamp(19px,5.2vw,22px);letter-spacing:.56em;text-indent:.56em}
 
 /* toast, note */
 .toast{position:fixed;left:50%;bottom:calc(30px + env(safe-area-inset-bottom,0px));transform:translate(-50%,24px);opacity:0;pointer-events:none;
-  background:var(--pearl);color:var(--wine);padding:11px 22px;border-radius:999px;font-size:13px;letter-spacing:.12em;white-space:nowrap;
+  background:var(--pearl);color:var(--wine);padding:11px 22px;border-radius:22px;font-size:13px;letter-spacing:.12em;width:max-content;max-width:calc(100% - 32px);text-align:center;line-height:1.5;
   box-shadow:0 16px 30px -12px rgba(0,0,0,.7);transition:transform .5s var(--ease),opacity .3s;z-index:30}
 .toast.show{transform:translate(-50%,0);opacity:1}
 #note{min-height:1.8em;margin:-10px 0 0}
+
+/* English: Latin text set in the italic display face for headings, with tighter tracking throughout */
+html[lang=en] h2{font:italic 500 clamp(32px,8.6vw,38px)/1.15 var(--f-latin);letter-spacing:0}
+html[lang=en] h1 span{letter-spacing:.16em;text-indent:.16em}
+html[lang=en] .btn{letter-spacing:.06em;text-indent:.06em}
+html[lang=en] .sub{letter-spacing:.01em}
+html[lang=en] .field label{letter-spacing:.24em;text-transform:uppercase}
+html[lang=en] .link{letter-spacing:.03em}
+html[lang=en] .meta{letter-spacing:.06em}
+html[lang=en] .toast{letter-spacing:.02em}
+#secret{letter-spacing:.08em;line-height:1.8;max-width:24em;margin-inline:auto;overflow-wrap:anywhere;text-wrap:balance}
+h2.long{font-size:clamp(20px,5.4vw,24px);line-height:1.6}
+html[lang=en] h2.long{font-size:clamp(25px,6.8vw,30px);line-height:1.2}
+#s-cover{gap:22px}
+@media (max-height:620px){#s-cover .cover{width:min(100%,290px,25vh)}#s-cover{gap:16px}}
+html[lang=en] .env-card b{font-family:var(--f-latin);font-style:italic}
+.stage.swap{animation:swap .35s ease}
+@keyframes swap{from{opacity:.25}}
+@media (max-width:350px){.step i{display:none}}
 
 @media (min-width:720px){.shell{padding-block:28px 28px}}
 @media (prefers-reduced-motion:reduce){
@@ -265,9 +297,12 @@ h1 span{font-size:clamp(19px,5.2vw,22px);letter-spacing:.56em;text-indent:.56em}
 <div class="shell">
   <header>
     <div class="bar">
-      <button class="icon-btn ghost" id="back" aria-label="上一步"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
+      <button class="icon-btn ghost" id="back" aria-label="上一步" data-i18n-aria="back"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
       <div class="step off" id="step" aria-hidden="true"><span id="step-n">01</span> <i>/ 04</i></div>
-      <button class="icon-btn" id="snd" aria-label="关闭声音" aria-pressed="true"><svg viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path id="snd-wave" d="M17 8.5a5 5 0 010 7"/></svg></button>
+      <div class="bar-r">
+        <button class="icon-btn" id="snd" aria-label="关闭声音" aria-pressed="true"><svg viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path id="snd-wave" d="M17 8.5a5 5 0 010 7"/></svg></button>
+        <button class="lang" id="lang" aria-label="切换成英文"><span data-l="zh">中</span><span data-l="en">EN</span></button>
+      </div>
     </div>
     <div class="rule off" id="rule"><b id="rule-b"></b></div>
   </header>
@@ -281,69 +316,69 @@ h1 span{font-size:clamp(19px,5.2vw,22px);letter-spacing:.56em;text-indent:.56em}
             <text id="ring-text"><textPath href="#ring">HAPPY BIRTHDAY · DEAR JOEY · </textPath></text></svg>
           <b class="foil-text">J</b>
         </div>
-        <h1><em class="foil-text">Dear Joey</em><span>生日快乐！！！</span></h1>
+        <h1><em class="foil-text">Dear Joey</em><span data-i18n="hbd">生日快乐！！！</span></h1>
       </div>
       <div class="actions">
-        <button class="btn wide" data-go="name">传送 Best wishes！</button>
+        <button class="btn wide" data-go="name" data-i18n="start">传送 Best wishes！</button>
       </div>
     </section>
 
     <!-- name -->
     <section class="screen" id="s-name" hidden>
-      <div class="head"><h2>在下是</h2><p class="sub">这个名字会署在你的祝福下面。</p></div>
+      <div class="head"><h2 data-i18n="nameH">在下是</h2><p class="sub" data-i18n="nameSub">这个名字会署在你的祝福下面。</p></div>
       <div class="field">
-        <label for="name">署名</label>
+        <label for="name" data-i18n="nameLabel">署名</label>
         <input class="name-input" id="name" maxlength="20" autocomplete="off" enterkeyhint="next">
       </div>
-      <button class="btn wide" id="name-next">下一步</button>
+      <button class="btn wide" id="name-next" data-i18n="next">下一步</button>
     </section>
 
     <!-- cover photo -->
     <section class="screen" id="s-cover" hidden>
-      <div class="head"><h2>明信片封面</h2><p class="sub">选一张照片，印在明信片正面</p></div>
+      <div class="head"><h2 class="long" data-i18n="coverH">选一张你们最好（最喜欢/最funny）的照片，放在封面！</h2><p class="sub" data-i18n="coverSub">选一张照片，印在明信片正面</p></div>
       <div class="cover-wrap">
         <label class="cover" id="cover">
-          <input type="file" id="photo" accept="image/*" aria-label="选择照片">
+          <input type="file" id="photo" accept="image/*" aria-label="选择照片" data-i18n-aria="choosePhoto">
           <img id="cover-img" alt="" hidden>
           <span class="cam" id="cover-icon"><svg viewBox="0 0 24 24"><rect x="3" y="4.5" width="18" height="15" rx="2"/><circle cx="8.5" cy="9.5" r="1.6"/><path d="M21 15.5l-5-5-9 9"/></svg></span>
         </label>
-        <p class="meta" id="cover-hint" hidden>点一下照片可以换一张</p>
+        <p class="meta" id="cover-hint" data-i18n="coverHint" hidden>点一下照片可以换一张</p>
       </div>
       <div class="actions">
-        <button class="btn wide" id="cover-next">下一步</button>
-        <button class="link" id="cover-skip">不放照片</button>
+        <button class="btn wide" id="cover-next" data-i18n="next">下一步</button>
+        <button class="link" id="cover-skip" data-i18n="coverSkip">不放照片</button>
       </div>
     </section>
 
     <!-- message -->
     <section class="screen" id="s-msg" hidden>
-      <div class="head"><h2>发挥文采</h2><p class="sub">欢迎各种 language</p></div>
+      <div class="head"><h2 data-i18n="msgH">发挥文采</h2><p class="sub" data-i18n="msgSub">欢迎各种 language</p></div>
       <div class="letter" id="letter">
         <div class="lt-top"><i aria-hidden="true">J.</i></div>
-        <textarea id="msg" aria-label="祝福内容"></textarea>
+        <textarea id="msg" aria-label="祝福内容" data-i18n-aria="msgAria"></textarea>
       </div>
-      <button class="btn wide" id="msg-next">下一步</button>
+      <button class="btn wide" id="msg-next" data-i18n="next">下一步</button>
     </section>
 
     <!-- video -->
     <section class="screen" id="s-video" hidden>
-      <div class="head"><h2>祝福视频 time</h2><p class="sub">Don't be shy</p></div>
+      <div class="head"><h2 data-i18n="videoH">祝福视频 time</h2><p class="sub" data-i18n="videoSub">Don't be shy</p></div>
       <div>
         <label class="drop" id="drop">
-          <input type="file" id="file" accept="video/*" aria-label="选择视频">
+          <input type="file" id="file" accept="video/*" aria-label="选择视频" data-i18n-aria="chooseVideo">
           <span class="cam"><svg viewBox="0 0 24 24"><rect x="3" y="6.5" width="13" height="11" rx="2"/><path d="M16 10.5l5-3v9l-5-3z"/></svg></span>
         </label>
         <div class="clip" id="clip" hidden>
           <video id="preview" playsinline controls muted></video>
           <div class="clip-row">
             <div class="clip-info"><div class="clip-name" id="clip-name"></div><div class="clip-meta" id="clip-meta"></div></div>
-            <button class="icon-btn" id="clip-x" aria-label="换一段视频"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+            <button class="icon-btn" id="clip-x" aria-label="换一段视频" data-i18n-aria="changeVideo"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
           </div>
         </div>
       </div>
       <div class="actions">
-        <button class="btn wide" id="send">寄给 Joey Let's go</button>
-        <button class="link" id="skip">不传视频，只寄文字</button>
+        <button class="btn wide" id="send" data-i18n="send">寄给 Joey Let's go</button>
+        <button class="link" id="skip" data-i18n="skipVideo">不传视频，只寄文字</button>
       </div>
     </section>
 
@@ -351,23 +386,23 @@ h1 span{font-size:clamp(19px,5.2vw,22px);letter-spacing:.56em;text-indent:.56em}
     <section class="screen" id="s-send" hidden>
       <div class="env" id="env" aria-hidden="true">
         <div class="env-back"></div>
-        <div class="env-card"><b>亲爱的 Joey：</b><span id="env-text"></span></div>
+        <div class="env-card"><b data-i18n="envDear">亲爱的 Joey：</b><span id="env-text"></span></div>
         <div class="env-pocket"></div>
         <div class="env-flap"></div>
         <div class="seal">J</div>
       </div>
       <div class="head" style="align-items:center" aria-live="polite">
-        <h2 id="send-h">等俺一下</h2>
+        <h2 id="send-h" data-i18n="sending">等俺一下</h2>
         <p class="sub" id="send-p"></p>
       </div>
       <div class="track" id="track"><b id="bar"></b></div>
       <p class="meta" id="note" role="status"></p>
       <div class="actions done-actions" id="fail" hidden>
-        <button class="btn wide" id="retry">再试一次</button>
-        <button class="link" id="edit">返回修改</button>
+        <button class="btn wide" id="retry" data-i18n="retry">再试一次</button>
+        <button class="link" id="edit" data-i18n="edit">返回修改</button>
       </div>
       <div class="actions done-actions" id="done" hidden>
-        <p class="meta">Keep this a secret until :)</p>
+        <p class="meta" id="secret" data-i18n="secret"></p>
       </div>
     </section>
   </main>
@@ -381,6 +416,55 @@ h1 span{font-size:clamp(19px,5.2vw,22px);letter-spacing:.56em;text-indent:.56em}
 (() => {
   const $ = id => document.getElementById(id);
   const order = ['welcome','name','cover','msg','video','send'];
+  /* ---------- language ---------- */
+  const I18N = {
+    zh: {
+      title: 'Joey 的生日信箱', back: '上一步', mute: '关闭声音', unmute: '打开声音', soundOn: '声音已打开', soundOff: '声音已关闭', switchLang: '切换成英文',
+      hbd: '生日快乐！！！', start: '传送 Best wishes！',
+      nameH: '在下是', nameSub: '这个名字会署在你的祝福下面。', nameLabel: '署名', next: '下一步',
+      coverH: '选一张你们最好（最喜欢/最funny）的照片，放在封面！', coverSub: '选一张照片，印在明信片正面', choosePhoto: '选择照片', coverHint: '点一下照片可以换一张', coverSkip: '不放照片',
+      photoBad: '这张照片打不开，换一张试试', photoNeeded: '先选一张照片，或点下面不放照片',
+      msgH: '发挥文采', msgSub: '欢迎各种 language', msgAria: '祝福内容',
+      videoH: '祝福视频 time', videoSub: "Don't be shy", chooseVideo: '选择视频', changeVideo: '换一段视频',
+      send: "寄给 Joey Let's go", skipVideo: '不传视频，只寄文字', videoAdded: '视频选好了', notVideo: '这个文件不是视频', videoNeeded: '先选一段视频，或点下面只寄文字',
+      envDear: '亲爱的 Joey：', sending: '等俺一下', reconnecting: '网络开小差了，正在重连…', done: 'Perfect！', secret: 'Dear {name}, keep this a secret until Nov 16th :)',
+      failH: '没寄出去', failGeneric: '出了点问题，再试一次', tooLarge: '视频太大了，上限 4 GB，换一段小一点的吧', serverFull: '信箱暂时满了，过一会儿再试',
+      retry: '再试一次', edit: '返回修改',
+    },
+    en: {
+      title: "Joey's Birthday Mailbox", back: 'Back', mute: 'Mute', unmute: 'Unmute', soundOn: 'Sound on', soundOff: 'Sound off', switchLang: 'Switch to Chinese',
+      hbd: 'Happy Birthday!!!', start: 'Send your best wishes!',
+      nameH: "Hi, I'm…", nameSub: 'This is how your postcard will be signed.', nameLabel: 'Your name', next: 'Next',
+      coverH: 'Pick the best photo of you two (your favorite or the funniest) for the cover!', coverSub: 'Pick a photo for the front of your postcard', choosePhoto: 'Choose a photo', coverHint: 'Tap the photo to pick another', coverSkip: 'Skip the photo',
+      photoBad: "Couldn't open that photo. Try another one.", photoNeeded: 'Pick a photo first, or tap "Skip the photo" below',
+      msgH: 'Get poetic', msgSub: 'Any language is welcome', msgAria: 'Your message',
+      videoH: 'Video time', videoSub: "Don't be shy", chooseVideo: 'Choose a video', changeVideo: 'Choose a different video',
+      send: "Send to Joey, let's go!", skipVideo: 'No video, just send my postcard', videoAdded: 'Video added', notVideo: "That file isn't a video", videoNeeded: 'Pick a video first, or tap "No video" below',
+      envDear: 'Dear Joey,', sending: 'Hang on a sec…', reconnecting: 'Connection hiccup, reconnecting…', done: 'Perfect!', secret: 'Dear {name}, keep this a secret until Nov 16th :)',
+      failH: "It didn't go through", failGeneric: 'Something went wrong. Please try again.', tooLarge: 'This video is over the 4 GB limit. Try a shorter one.', serverFull: 'The mailbox is full right now. Try again in a little while.',
+      retry: 'Try again', edit: 'Go back and edit',
+    },
+  };
+  // ?lang=en or ?lang=zh in the link wins, then the visitor's last choice, then the phone's own language.
+  let lang = (() => {
+    try {
+      const q = new URLSearchParams(location.search).get('lang'); if (q === 'en' || q === 'zh') return q;
+      const saved = localStorage.getItem('joey-lang'); if (saved === 'en' || saved === 'zh') return saved;
+    } catch (e) {}
+    return /^zh/i.test(navigator.language || '') ? 'zh' : 'en';
+  })();
+  const t = k => (I18N[lang][k] ?? I18N.zh[k] ?? k).replace('{name}', () => $('name').value.trim());
+  // Text that changes with state keeps its key on the element, so switching language re-renders it too.
+  const say = (el, k) => { if (k) { el.dataset.i18n = k; el.textContent = t(k); } else delete el.dataset.i18n; };
+  function applyLang(){
+    document.documentElement.lang = lang === 'en' ? 'en' : 'zh-CN';
+    document.title = t('title');
+    document.querySelectorAll('[data-i18n]').forEach(el => { el.textContent = t(el.dataset.i18n); });
+    document.querySelectorAll('[data-i18n-aria]').forEach(el => el.setAttribute('aria-label', t(el.dataset.i18nAria)));
+    $('snd').setAttribute('aria-label', t(state.sound ? 'mute' : 'unmute'));
+    $('lang').setAttribute('aria-label', t('switchLang'));
+  }
+
   const state = { step:'welcome', file:null, url:null, busy:false, sound:true, clientId:null, token:null, cover:null, coverUrl:null };
   const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
   document.addEventListener('touchstart', () => {}, {passive:true}); // enables :active on iOS
@@ -487,7 +571,7 @@ h1 span{font-size:clamp(19px,5.2vw,22px);letter-spacing:.56em;text-indent:.56em}
       $('cover-img').src = state.coverUrl; $('cover-img').hidden = false;
       $('cover-icon').hidden = true; $('cover-hint').hidden = false; $('cover').classList.add('has');
       fx.tap();
-    } catch (e) { refuse($('cover'), '这张照片打不开，换一张试试'); }
+    } catch (e) { refuse($('cover'), t('photoBad')); }
     $('photo').value = '';
   }
   function clearCover(){
@@ -498,7 +582,7 @@ h1 span{font-size:clamp(19px,5.2vw,22px);letter-spacing:.56em;text-indent:.56em}
   }
   $('photo').addEventListener('change', e => setCover(e.target.files[0]));
   $('cover-next').onclick = () => {
-    if (!state.cover) return refuse($('cover'), '先选一张照片，或点下面不放照片');
+    if (!state.cover) return refuse($('cover'), t('photoNeeded'));
     fx.tap(); go('msg');
   };
   $('cover-skip').onclick = () => { fx.soft(); clearCover(); go('msg'); };
@@ -508,13 +592,13 @@ h1 span{font-size:clamp(19px,5.2vw,22px);letter-spacing:.56em;text-indent:.56em}
   const fmtDur = s => isFinite(s) ? Math.floor(s/60) + ':' + String(Math.round(s%60)).padStart(2,'0') : '';
   function setFile(f){
     if (!f) return;
-    if (!f.type.startsWith('video/')) return refuse($('drop'), '这个文件不是视频');
+    if (!f.type.startsWith('video/')) return refuse($('drop'), t('notVideo'));
     clearFile();
     state.file = f; state.url = URL.createObjectURL(f);
     const v = $('preview'); v.hidden = false; v.src = state.url;
     $('clip-name').textContent = f.name; $('clip-meta').textContent = fmtSize(f.size);
     $('drop').hidden = true; $('clip').hidden = false; $('skip').hidden = true;
-    fx.tap(); toast('视频选好了');
+    fx.tap(); toast(t('videoAdded'));
   }
   function clearFile(){
     if (state.url) URL.revokeObjectURL(state.url);
@@ -536,7 +620,7 @@ h1 span{font-size:clamp(19px,5.2vw,22px);letter-spacing:.56em;text-indent:.56em}
   window.addEventListener('drop', e => e.preventDefault());
 
   $('send').onclick = () => {
-    if (!state.file) return refuse($('drop'), '先选一段视频，或点下面只寄文字');
+    if (!state.file) return refuse($('drop'), t('videoNeeded'));
     send();
   };
   $('skip').onclick = send;
@@ -567,7 +651,7 @@ h1 span{font-size:clamp(19px,5.2vw,22px);letter-spacing:.56em;text-indent:.56em}
   async function persist(fn){
     for (let n = 0;; n++){
       try { const r = await fn(); if (r.status && (r.status < 500 || r.status === 507)) { setNote(''); return r; } } catch (e) {}
-      setNote('网络开小差了，正在重连…');
+      setNote(t('reconnecting'));
       await sleep(Math.min(1000 * 2 ** n, 8000));
     }
   }
@@ -610,7 +694,7 @@ h1 span{font-size:clamp(19px,5.2vw,22px);letter-spacing:.56em;text-indent:.56em}
     $('env-text').textContent = msg.value.trim().slice(0, 90);
     const card = env.querySelector('.env-card');
     card.style.backgroundImage = state.coverUrl ? 'url(' + state.coverUrl + ')' : ''; card.classList.toggle('photo', !!state.coverUrl);
-    $('send-h').textContent = '等俺一下'; $('send-p').innerHTML = '<span class="pct" id="pct">0%</span>';
+    say($('send-h'), 'sending'); say($('send-p')); $('send-p').innerHTML = '<span class="pct" id="pct">0%</span>';
     $('track').hidden = $('send-p').hidden = $('note').hidden = false; $('bar').style.transform = 'scaleX(0)';
     $('done').hidden = true; $('fail').hidden = true; setNote('');
     $('preview').pause();
@@ -637,17 +721,17 @@ h1 span{font-size:clamp(19px,5.2vw,22px);letter-spacing:.56em;text-indent:.56em}
   }
   function finish(){
     $('env').classList.add('sealed'); fx.thunk(); fx.yay(); foil();
-    $('send-h').textContent = 'Perfect！';
+    say($('send-h'), 'done'); say($('secret'), 'secret');
     $('track').hidden = $('send-p').hidden = $('note').hidden = true;
     $('done').hidden = false;
     state.clientId = state.token = null;
     try { localStorage.removeItem('joey-draft'); } catch (e) {}
   }
-  const ERR = { too_large: '视频太大了，上限 4 GB，换一段小一点的吧', server_full: '信箱暂时满了，过一会儿再试' };
+  const ERR = { too_large: 'tooLarge', server_full: 'serverFull' };
   function failed(e){
     console.error(e); fx.nope();
-    $('send-h').textContent = '没寄出去';
-    $('send-p').textContent = ERR[e.code] || '出了点问题，再试一次';
+    say($('send-h'), 'failH');
+    say($('send-p'), ERR[e.code] || 'failGeneric');
     $('track').hidden = $('note').hidden = true; $('fail').hidden = false;
   }
   $('retry').onclick = send;
@@ -657,10 +741,19 @@ h1 span{font-size:clamp(19px,5.2vw,22px);letter-spacing:.56em;text-indent:.56em}
   $('snd').onclick = () => {
     state.sound = !state.sound;
     $('snd').setAttribute('aria-pressed', state.sound);
-    $('snd').setAttribute('aria-label', state.sound ? '关闭声音' : '打开声音');
+    $('snd').setAttribute('aria-label', t(state.sound ? 'mute' : 'unmute'));
     $('snd-wave').setAttribute('d', state.sound ? 'M17 8.5a5 5 0 010 7' : 'M17 9.5l4 5M21 9.5l-4 5');
-    fx.tap(); toast(state.sound ? '声音已打开' : '声音已关闭');
+    fx.tap(); toast(t(state.sound ? 'soundOn' : 'soundOff'));
   };
+
+  /* ---------- language switch ---------- */
+  $('lang').onclick = () => {
+    lang = lang === 'en' ? 'zh' : 'en';
+    try { localStorage.setItem('joey-lang', lang); } catch (e) {}
+    applyLang(); fx.tap();
+    const st = document.querySelector('.stage'); st.classList.remove('swap'); void st.offsetWidth; st.classList.add('swap');
+  };
+  applyLang();
 
   /* ---------- ambient gold dust ---------- */
   if (!reduce) (() => {
