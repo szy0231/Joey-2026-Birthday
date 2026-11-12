@@ -369,16 +369,17 @@ h1{margin:0;font:italic 500 clamp(56px,17vw,92px)/1 var(--f-latin);letter-spacin
                  before it is needed (worked out from the measured download speed and the video's bitrate).
      Background fetching starts when the envelope opens, takes the opened card's video first, and stays within
      a memory budget so a phone is never asked to hold more than it can.
-     Each video can come from two places: the server, or straight from Cloudflare (alt). Right after the envelope
-     opens, a few MB are fetched from both at once and the faster one is used from then on. */
+     Each video can come from up to three places: the server, or straight from Cloudflare R2 or Tencent Cloud COS
+     (alts). Right after the envelope opens, a few MB are fetched from each at once and the fastest is used. */
   const player = $('player'), coarse = matchMedia('(pointer:coarse)').matches;
   const BUDGET = coarse ? 400e6 : 1500e6, ONE = coarse ? 160e6 : 700e6;   // bytes kept in memory: in total, per video
   const saver = !!(navigator.connection && navigator.connection.saveData);
   const store = new Map();   // wish id -> { state: idle | loading | ready | failed, got, url, ctrl, done }
   let used = 0, rate = 0, streaming = false, wanted = null, pumping = false, session = null;
-  let useAlt = false, probing = null, routeKnown = false;
-  const srcOf = w => (useAlt && w.video.alt ? w.video.alt : w.video.src);
-  const altFailed = () => { if (useAlt) { useAlt = false; console.warn('Cloudflare route failed; using the server'); } };
+  let route = 'server', probing = null, routeKnown = false;
+  const alts = w => (w.video && w.video.alts) || {};
+  const srcOf = w => alts(w)[route] || w.video.src;
+  const altFailed = () => { if (route !== 'server') { console.warn(route, 'route failed; using the server'); route = 'server'; } };
   // Downloads up to `bytes` of url; t.rate() is bytes per second so far (0 until enough has arrived).
   function trial(url, bytes){
     const t = { n: 0, tFirst: 0, ctrl: new AbortController() };
@@ -398,15 +399,17 @@ h1{margin:0;font:italic 500 clamp(56px,17vw,92px)/1 var(--f-latin);letter-spacin
   // compare how fast each was going and stop both.
   function chooseRoute(){
     return probing = probing || (async () => {
-      const w = wishes.find(x => x.video && x.video.ready && x.video.alt && x.video.size > 6e6); if (!w) { routeKnown = true; return; }
-      const a = trial(w.video.src, 6 << 20), b = trial(w.video.alt, 6 << 20);
-      const firstOk = new Promise(r => { a.done.then(ok => ok && r()); b.done.then(ok => ok && r()); });   // a failure does not end the race
-      await Promise.race([Promise.all([a.done, b.done]), firstOk.then(() => new Promise(r => setTimeout(r, 150))), new Promise(r => setTimeout(r, 6000))]);
-      const ra = a.rate(), rb = b.rate(); a.ctrl.abort(); b.ctrl.abort();
-      useAlt = rb > ra * 1.15;
-      sample(Math.max(ra, rb) * 1.6);                                 // the two ran side by side, sharing the line
+      const w = wishes.find(x => x.video && x.video.ready && Object.keys(alts(x)).length && x.video.size > 6e6);
+      if (!w) { routeKnown = true; return; }
+      const tests = [['server', w.video.src], ...Object.entries(alts(w))].map(([id, url]) => ({ id, t: trial(url, 6 << 20) }));
+      const firstOk = new Promise(r => tests.forEach(x => x.t.done.then(ok => ok && r())));   // a failure does not end the race
+      await Promise.race([Promise.all(tests.map(x => x.t.done)), firstOk.then(() => new Promise(r => setTimeout(r, 150))), new Promise(r => setTimeout(r, 6000))]);
+      const rates = Object.fromEntries(tests.map(x => [x.id, x.t.rate()])); tests.forEach(x => x.t.ctrl.abort());
+      const best = Object.keys(rates).reduce((a, b) => (rates[b] > rates[a] ? b : a), 'server');
+      route = best !== 'server' && rates[best] > rates.server * 1.15 ? best : 'server';
+      sample(Math.max(...Object.values(rates)) * 1.6);               // they ran side by side, sharing the line
       routeKnown = true;
-      console.info('route:', useAlt ? 'Cloudflare' : 'server', '| server', (ra * 8 / 1e6).toFixed(1), 'Mb/s | Cloudflare', (rb * 8 / 1e6).toFixed(1), 'Mb/s');
+      console.info('route:', route, '|', Object.entries(rates).map(([k, v]) => k + ' ' + (v * 8 / 1e6).toFixed(1) + ' Mb/s').join(' | '));
     })();
   }
   const entry = id => { if (!store.has(id)) store.set(id, { state: 'idle', got: 0 }); return store.get(id); };
@@ -527,7 +530,7 @@ h1{margin:0;font:italic 500 clamp(56px,17vw,92px)/1 var(--f-latin);letter-spacin
     };
     $('buf-skip').hidden = false;
     if (e.state === 'ready') return playNow(e.url);
-    if (!routeKnown && v.alt) { buf(0); return chooseRoute().then(() => { if (session === ses) openVideo(w); }); }   // tapped before the route was chosen
+    if (!routeKnown && Object.keys(alts(w)).length) { buf(0); return chooseRoute().then(() => { if (session === ses) openVideo(w); }); }   // tapped before the route was chosen
     const streamWait = rate && bps ? Math.max(0, v.duration * (bps / rate - 1)) : 0, fetchWait = rate ? (v.size - e.got) / rate : Infinity;
     if (e.state === 'loading' && fetchWait <= streamWait + 3) return waitForFetch(w, e, ses);   // nearly there: finish, then play from memory
     stream(w, ses);

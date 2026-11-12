@@ -17,7 +17,7 @@ import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { makeStorage } from './storage.js';
+import { makeStorage, makeMirror } from './storage.js';
 import { prepare } from './media.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -41,6 +41,7 @@ fs.mkdirSync(INCOMING, { recursive: true });
 fs.mkdirSync(PLAY, { recursive: true });
 fs.mkdirSync(COVERS, { recursive: true });
 const storage = makeStorage(process.env);
+const mirror = makeMirror(process.env);   // optional: playable copies in mainland China
 
 function loadEnv(file) {
   if (!fs.existsSync(file)) return;
@@ -244,7 +245,7 @@ const playCell = v => {
   if (p?.from) out.push(`原片：${esc(p.from.codec.toUpperCase())}${p.from.hdr ? ' HDR' : ''} · ${dims(p.from)} · ${p.from.mbps} Mb/s`);
   if (playCurrent(v)) {
     const mbps = p.duration ? p.size * 8 / p.duration / 1e6 : 0;
-    out.push(`播放版：${p.mode === 'direct' ? '直接用原片画面（未重新编码）' : '已转成 H.264'} · ${dims(p)} · ${mb(p.size)} · <span class="rate" data-mbps="${mbps.toFixed(2)}" data-dur="${p.duration.toFixed(1)}">${mbps.toFixed(1)} Mb/s</span>${storage.enabled ? (p.synced ? ' · 已备份' : ' · 备份中') : ''}`);
+    out.push(`播放版：${p.mode === 'direct' ? '直接用原片画面（未重新编码）' : '已转成 H.264'} · ${dims(p)} · ${mb(p.size)} · <span class="rate" data-mbps="${mbps.toFixed(2)}" data-dur="${p.duration.toFixed(1)}">${mbps.toFixed(1)} Mb/s</span>${storage.enabled ? (p.synced ? ' · 已备份' : ' · 备份中') : ''}${mirror.enabled ? (p.mirrored ? ' · 已同步到大陆' : ' · 正在同步到大陆') : ''}`);
   } else if (gaveUp(v)) out.push('<span style="color:#b00">播放版：生成失败，Joey 会看到' + (playDone(v) ? '旧的播放版' : '原片') + '</span>');
   else out.push('播放版：' + (playDone(v) ? '正在按新规则重新生成（期间 Joey 看到旧版）' : '生成中'));
   return out.map(t => '<br><small>' + t + '</small>').join('');
@@ -254,7 +255,7 @@ const admin = (req, res, next) => (ADMIN_KEY && sameToken(ADMIN_KEY, req.query.k
 
 app.get('/admin', admin, wrap(async (req, res) => {
   const ws = await allWishes();
-  const r2Test = storage.enabled ? await storage.presign(SPEED_KEY, 3600).catch(() => '') : '';
+  const routes = await speedRoutes(`/admin/speed?mb=24&key=${encodeURIComponent(req.query.key)}`);
   const rows = ws.map((w, i) => `<tr data-id="${w.id}"><td>${i + 1}</td><td>${esc(w.name)}</td><td>${esc(new Date(w.createdAt).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' }))}</td>
 <td class="m">${esc(w.message)}</td><td>${fileCell(w.cover, '没有封面')}</td><td>${fileCell(w.video, '没有视频')}${playCell(w.video)}</td>
 <td>${w.synced ? '是' : '还没有'}</td><td class="del"><button class="ask">删除</button><span hidden>确定删除 ${esc(w.name)} 的这条？删了找不回来。<br><button class="yes">确定删除</button> <button class="no">取消</button></span></td></tr>`).join('');
@@ -264,7 +265,8 @@ td,th{border-bottom:1px solid #ddd;padding:8px;text-align:left;vertical-align:to
 button{font:inherit;padding:4px 12px;border:1px solid #bbb;border-radius:6px;background:#fff;cursor:pointer}button:disabled{opacity:.5}
 .yes{border-color:#b00;background:#b00;color:#fff}.del{min-width:9em}.del span{color:#b00}.box{background:#f6f3f0;border-radius:8px;padding:12px 16px;margin:12px 0}.wait{color:#b00}</style>
 <h1>已收到 ${ws.length} 份祝福</h1>${VIEW_KEY ? `<p><a href="/for-joey/${esc(VIEW_KEY)}">打开 Joey 会看到的页面</a>（这个网址只给 Joey）</p>` : ''}<p>文件存储：${storage.enabled ? 'Cloudflare R2（' + esc(storage.bucket) + '）' : '<b style="color:#b00">R2 未配置，文件只在这台服务器上</b>'}。时间为北京时间。</p>
-<div class="box"><button id="speed">测一下网速</button> <span id="speed-out">分别测从香港服务器和从 Cloudflare 下载到你这台设备的速度。在 Joey 会用的网络上测最有参考价值。</span></div>
+<div class="box"><button id="speed">测一下网速</button> <span id="speed-out">分别测每条线路下载到你这台设备的速度。在 Joey 会用的网络上测最有参考价值。</span>
+<p style="margin:8px 0 0">想知道大陆那边的速度：把这个测速链接发给在大陆的朋友，请对方打开后截图给你（这个链接只能测速，看不到祝福）：<br><code style="user-select:all">https://${esc(req.get('host'))}/speedtest/${TEST_KEY}</code></p></div>
 <div class="w"><table><tr><th>#</th><th>署名</th><th>时间</th><th>祝福</th><th>封面照片</th><th>视频</th><th>文字已备份到 R2</th><th></th></tr>${rows}</table></div>
 <script>
 const key = new URLSearchParams(location.search).get('key');
@@ -280,34 +282,14 @@ document.querySelector('table').addEventListener('click', async e => {
     else { box.innerHTML = '没删成：' + (r ? (await r.json().catch(() => ({}))).error || r.status : '网络错误') + '。刷新页面再试。'; }
   }
 });
-const R2_TEST = ${JSON.stringify(r2Test)};
-// Downloads url for at most 20 s and returns megabits per second, measured from the first byte.
-async function measure(url){
-  const ctrl = new AbortController(), stop = setTimeout(() => ctrl.abort(), 20000);
-  let n = 0, tFirst = 0;
-  try {
-    const r = await fetch(url, { cache: 'no-store', signal: ctrl.signal });
-    if (!r.ok) throw new Error('HTTP ' + r.status);
-    const reader = r.body.getReader();
-    for (;;) { const { done, value } = await reader.read(); if (done) break; if (!tFirst) tFirst = performance.now(); n += value.length; }
-  } catch (err) { if (!ctrl.signal.aborted) throw err; } finally { clearTimeout(stop); }
-  if (n < 1e6) throw new Error('20 秒内只下到 ' + (n / 1e6).toFixed(1) + ' MB');
-  return n * 8 / ((performance.now() - tFirst) / 1000) / 1e6;
-}
+const ROUTES = ${JSON.stringify(routes)};
+${MEASURE_JS}
 document.getElementById('speed').onclick = async e => {
   const out = document.getElementById('speed-out'); e.target.disabled = true;
   document.querySelectorAll('.est').forEach(el => el.remove());
-  let a = 0, b = 0, msg = '';
-  out.textContent = '正在测香港服务器…';
-  try { a = await measure('/admin/speed?mb=24&key=' + encodeURIComponent(key)); msg += '香港服务器 ' + a.toFixed(1) + ' Mb/s'; }
-  catch (err) { msg += '香港服务器测速失败（' + err.message + '）'; }
-  if (R2_TEST) {
-    out.textContent = msg + '；正在测 Cloudflare…';
-    try { b = await measure(R2_TEST); msg += '；Cloudflare ' + b.toFixed(1) + ' Mb/s'; }
-    catch (err) { msg += '；Cloudflare 测速失败（多半是 R2 存储桶还没设置 CORS，见说明）'; }
-  } else msg += '；Cloudflare 这一路还没准备好（R2 未配置）';
-  const mbps = Math.max(a, b);
-  out.textContent = msg + (mbps ? '。Joey 的页面会自动用快的那一路，下面按 ' + mbps.toFixed(1) + ' Mb/s 估算每个视频开播前要等多久。' : '。');
+  const best = await runSpeedTest(ROUTES, text => { out.textContent = text; });
+  const mbps = best;
+  if (mbps) out.textContent += ' Joey 的页面会自动用最快的那一路，下面按 ' + mbps.toFixed(1) + ' Mb/s 估算每个视频开播前要等多久。';
   e.target.disabled = false;
   if (!mbps) return;
   {
@@ -320,20 +302,71 @@ document.getElementById('speed').onclick = async e => {
 </script>`);
 }));
 
-// Incompressible bytes for the speed test. The same 24 MB also sits in R2, to test the Cloudflare route.
+// Incompressible bytes for the speed test. The same 24 MB also sits in R2 (and COS), to test those routes.
 const NOISE = crypto.randomBytes(1 << 20);
 const SPEED_KEY = 'speedtest/24mb.bin';
-async function ensureSpeedObject() {
-  if (!storage.enabled) return;
-  try { if ((await storage.size(SPEED_KEY)) === 24 * NOISE.length) return; } catch {}
-  await storage.putBuffer(SPEED_KEY, Buffer.concat(Array(24).fill(NOISE)), 'application/octet-stream');
-  log('stored', SPEED_KEY);
+async function ensureSpeedObject(store) {
+  if (!store.enabled) return;
+  try { if ((await store.size(SPEED_KEY)) === 24 * NOISE.length) return; } catch {}
+  await store.putBuffer(SPEED_KEY, Buffer.concat(Array(24).fill(NOISE)), 'application/octet-stream');
+  log('stored', SPEED_KEY, 'in', store.name);
 }
-app.get('/admin/speed', admin, (req, res) => {
+function sendNoise(req, res) {
   let left = Math.min(Math.max(Number(req.query.mb) || 8, 1), 64);
   res.set({ 'Content-Type': 'application/octet-stream', 'Content-Length': left * NOISE.length, 'Cache-Control': 'no-store' });
   (function send() { while (left-- > 0) { if (!res.write(NOISE)) return res.once('drain', send); } res.end(); })();
-});
+}
+// Every route a video can take to Joey, as [label, url] pairs for the speed test.
+async function speedRoutes(serverUrl) {
+  const out = [['香港服务器', serverUrl]];
+  if (storage.enabled) out.push(['Cloudflare', await storage.presign(SPEED_KEY, 3600).catch(() => '')]);
+  if (mirror.enabled) out.push(['腾讯云大陆 COS', await mirror.presign(SPEED_KEY, 3600).catch(() => '')]);
+  return out;
+}
+// Client code: download each route for up to 20 s and report megabits per second; resolves with the best.
+const MEASURE_JS = `
+async function measure(url){
+  const ctrl = new AbortController(), stop = setTimeout(() => ctrl.abort(), 20000);
+  let n = 0, tFirst = 0;
+  try {
+    const r = await fetch(url, { cache: 'no-store', signal: ctrl.signal });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const reader = r.body.getReader();
+    for (;;) { const { done, value } = await reader.read(); if (done) break; if (!tFirst) tFirst = performance.now(); n += value.length; }
+  } catch (err) { if (!ctrl.signal.aborted) throw err; } finally { clearTimeout(stop); }
+  if (n < 1e6) throw new Error('20 秒内只下到 ' + (n / 1e6).toFixed(1) + ' MB');
+  return n * 8 / ((performance.now() - tFirst) / 1000) / 1e6;
+}
+async function runSpeedTest(routes, show){
+  const done = []; let best = 0;
+  for (const [label, url] of routes) {
+    show(done.concat(label + ' 测速中…').join('；'));
+    if (!url) { done.push(label + ' 未就绪'); continue; }
+    try { const v = await measure(url); best = Math.max(best, v); done.push(label + ' ' + v.toFixed(1) + ' Mb/s'); }
+    catch (err) { done.push(label + ' 测速失败' + (label === '香港服务器' ? '（' + err.message + '）' : '（多半是存储桶还没设置 CORS）')); }
+  }
+  show(done.join('；') + '。');
+  return best;
+}`;
+// A link that can be sent to anyone to measure their speed on every route; it shows no wishes and allows nothing else.
+const TEST_KEY = ADMIN_KEY ? crypto.createHash('sha256').update('speedtest:' + ADMIN_KEY).digest('hex').slice(0, 16) : '';
+const tester = (req, res, next) => (TEST_KEY && sameToken(TEST_KEY, req.params.t) ? next() : res.status(404).send('Not found'));
+app.get('/speedtest/:t/data', tester, sendNoise);
+app.get('/speedtest/:t', tester, wrap(async (req, res) => {
+  const routes = await speedRoutes(`/speedtest/${TEST_KEY}/data?mb=24`);
+  res.set({ 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex' }).type('html').send(`<!doctype html><html lang="zh-CN"><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>网速测试</title>
+<style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#3B0B19;color:#F7ECE6;font:15px/1.8 system-ui,-apple-system,"PingFang SC",sans-serif;padding:24px}
+main{max-width:30em;display:flex;flex-direction:column;gap:18px;text-align:center}h1{margin:0;font-weight:400;letter-spacing:.2em}
+p{margin:0;color:rgba(247,236,230,.7)}#out{color:#F4E2C2;font-size:17px;min-height:3.6em}
+button{font:inherit;font-size:16px;padding:12px 32px;border:0;border-radius:999px;background:linear-gradient(135deg,#F4E2C2,#D8B98C 45%,#A8804D);color:#25060F;cursor:pointer}
+button:disabled{opacity:.5}</style>
+<main><h1>网速测试</h1><p>点下面的按钮，大约一分钟测完。测完请截图发回给我，谢谢！</p><div id="out"></div><button id="go">开始测速</button></main>
+<script>const ROUTES = ${JSON.stringify(routes)};${MEASURE_JS}
+document.getElementById('go').onclick = async e => { e.target.disabled = true; await runSpeedTest(ROUTES, t => { document.getElementById('out').textContent = t; }); e.target.textContent = '再测一次'; e.target.disabled = false; };
+</script></html>`);
+}));
+app.get('/admin/speed', admin, sendNoise);
 
 // Remove one wish everywhere: the R2 copies first (so a failure leaves something to retry), then local files.
 const gone = new Set();   // ids deleted while a background job may still be holding them
@@ -343,6 +376,7 @@ async function purge(id) {
       for (const key of await storage.list(prefix + id)) await storage.remove(key);
     }
   }
+  if (mirror.enabled) for (const key of await mirror.list('play/' + id)) await mirror.remove(key);
   await fsp.rm(wishPath(id), { force: true });
   await fsp.rm(KINDS.video.local(id), { force: true });
   await fsp.rm(KINDS.cover.local(id), { force: true });
@@ -386,16 +420,20 @@ app.get('/api/view/:key/wishes', viewer, wrap(async (req, res) => {
     video: w.video && w.video.status !== 'uploading' ? await videoView(w) : null,
   }))));
 }));
-// Each playable video has two addresses: this server, and (once backed up) the same file straight from Cloudflare
-// R2 through a link that expires. Joey's browser measures both and plays from whichever is faster where she is.
+// Each playable video has up to three addresses: this server, and (once copied there) the same file straight from
+// Cloudflare R2 or from Tencent Cloud COS in mainland China, through links that expire. Joey's browser measures
+// them and plays from whichever is fastest where she is.
 // Prepared files have a name that changes whenever they are remade, so browsers may keep them forever.
 const ALT_TTL = 3 * 24 * 3600;
 async function videoView(w) {
   const v = w.video, p = v.play;
   if (playDone(v)) {
     const file = playFile(w.id, v), base = `/media/${VIEW_KEY}/${file}`;
-    const alt = storage.enabled && p.synced ? await storage.presign(`play/${file}.mp4`, ALT_TTL).catch(() => null) : null;
-    return { ready: true, src: base + '.mp4', alt, poster: base + '.jpg', duration: p.duration, width: p.width, height: p.height, size: p.size };
+    const alts = {};
+    if (storage.enabled && p.synced) alts.r2 = await storage.presign(`play/${file}.mp4`, ALT_TTL).catch(() => null);
+    if (mirror.enabled && p.mirrored) alts.cos = await mirror.presign(`play/${file}.mp4`, ALT_TTL).catch(() => null);
+    for (const k of Object.keys(alts)) if (!alts[k]) delete alts[k];
+    return { ready: true, src: base + '.mp4', alts, poster: base + '.jpg', duration: p.duration, width: p.width, height: p.height, size: p.size };
   }
   if (gaveUp(v)) return { ready: true, src: `/api/view/${VIEW_KEY}/video/${w.id}`, poster: null, duration: 0, width: 0, height: 0, size: v.size };
   return { ready: false };
@@ -459,10 +497,12 @@ async function tidy(id) {
   const w = await readWish(id), v = w?.video;
   if (v?.status === 'stored' && settled(v)) await fsp.rm(KINDS.video.local(id), { force: true });
 }
-// Keep only the current playable copy of a video, here and in R2.
+// Keep only the current playable copy of a video, here, in R2 and in COS.
 async function dropOldPlay(id, keep) {
   for (const f of await fsp.readdir(PLAY)) if (f.startsWith(id) && !f.startsWith(keep + '.')) await fsp.rm(path.join(PLAY, f), { force: true });
-  if (storage.enabled) for (const key of await storage.list('play/' + id)) if (!key.startsWith(`play/${keep}.`)) await storage.remove(key);
+  for (const store of [storage, mirror]) {
+    if (store.enabled) for (const key of await store.list('play/' + id)) if (!key.startsWith(`play/${keep}.`)) await store.remove(key);
+  }
 }
 
 let retryTimer = null;
@@ -521,9 +561,35 @@ const kick = queue(async () => {
     }
     if (gone.has(id)) await purge(id).catch(() => {});   // deleted while we were copying it: clean up again
   }
+  if (mirror.enabled && await mirrorAll()) failed = true;
   clearTimeout(retryTimer);
   if (failed) retryTimer = setTimeout(kick, 60_000);
 }, 'sync');
+
+// Copy each playable video to COS. Kept apart from the R2 work so a COS problem never holds up the backups.
+async function mirrorAll() {
+  let failed = false;
+  for (const snapshot of await allWishes()) {
+    const id = snapshot.id, v = snapshot.video;
+    if (!playDone(v) || v.play.mirrored || gone.has(id)) continue;
+    const file = playFile(id, v), key = `play/${file}.mp4`, local = path.join(PLAY, `${file}.mp4`);
+    try {
+      await mirror.putFile(key, local, 'video/mp4');
+      const want = (await fsp.stat(local)).size, remote = await mirror.size(key);
+      if (remote !== want) throw new Error(`size mismatch for ${key}: remote ${remote}, expected ${want}`);
+      const kept = await withWish(id, async () => {
+        const w = await readWish(id);
+        if (!playDone(w?.video) || playFile(id, w.video) !== file) return false;
+        w.video.play.mirrored = true; await writeWish(w); return true;
+      });
+      if (kept) { await dropOldPlay(id, file); log('mirrored', key); }
+      else await mirror.remove(key);
+    } catch (e) {
+      if (!gone.has(id)) { failed = true; console.error(new Date().toISOString(), 'COS copy error for', id, e.message); }
+    }
+  }
+  return failed;
+}
 
 /* ---------- background preparation of the playable copy ---------- */
 // Separate from the R2 queue on purpose: a slow conversion must never delay getting an original into R2.
@@ -565,9 +631,9 @@ async function purgeOrphans(id, file) {
 }
 
 const server = app.listen(PORT, '127.0.0.1', () => {
-  console.log(`listening on 127.0.0.1:${PORT} · data in ${DATA} · R2 ${storage.enabled ? 'on (' + storage.bucket + ')' : 'OFF (local only)'}`);
+  console.log(`listening on 127.0.0.1:${PORT} · data in ${DATA} · R2 ${storage.enabled ? 'on (' + storage.bucket + ')' : 'OFF (local only)'} · COS ${mirror.enabled ? 'on (' + mirror.bucket + ')' : 'off'}`);
   kick(); kickPlay();
-  ensureSpeedObject().catch(e => console.error('speed test file:', e.message));
+  for (const store of [storage, mirror]) ensureSpeedObject(store).catch(e => console.error('speed test file in', store.name, e.message));
 });
 server.requestTimeout = 0; // slow mobile uploads must not be cut off
 server.headersTimeout = 60_000;

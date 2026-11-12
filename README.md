@@ -73,6 +73,27 @@ Joey 的页面会同时试“香港服务器”和“Cloudflare R2”两条线�
 存储桶仍然是私有的：Joey 的页面拿到的是有效期 3 天、每次打开页面都会重新生成的单个文件链接。
 管理页的“测一下网速”会分别显示两条线路的速度；Cloudflare 那一项测速失败，多半就是这一步还没做。
 
+## 可选：给在大陆看的 Joey 加一条大陆线路（腾讯云 COS）
+
+服务器会把每个视频的播放版再复制一份到腾讯云大陆地域的 COS 存储桶，Joey 的页面在三条线路里自动挑最快的。
+COS 只存播放版，原片仍然只在 R2。存储桶保持私有，用默认域名，不需要备案。
+
+1. **建存储桶**：腾讯云控制台 → 对象存储 COS → 存储桶列表 → 创建存储桶。地域选离 Joey 近的（如上海、广州、北京），
+   名称如 `joey-play`，访问权限选“私有读写”。建好后记下完整名称（带 `-数字` 后缀，如 `joey-play-1250000000`）
+   和地域代码（如 `ap-shanghai`）。
+2. **跨域设置**：进入这个存储桶 → 安全管理 → 跨域访问 CORS 设置 → 添加规则：
+   来源 Origin 填 `https://dearjoeyy.com`；操作 Methods 勾 GET 和 HEAD；Allow-Headers 填 `Range`；
+   Expose-Headers 填 `Content-Length,Content-Range,Accept-Ranges`；超时 Max-Age 填 `86400`。
+3. **建密钥**：访问管理 CAM → 用户 → 新建用户 → 快速创建，访问方式选“编程访问”，权限只勾 `QcloudCOSDataFullControl`。
+   记下 SecretId 和 SecretKey。
+4. **填进服务器**：`nano /opt/joey/.env`，填好 `COS_SECRET_ID`、`COS_SECRET_KEY`、`COS_BUCKET`、`COS_REGION`，保存后
+   `systemctl restart joey`。管理页每个视频后面出现“已同步到大陆”就好了。
+
+## 测速
+
+管理页的“测一下网速”会分别测每条线路。管理页上还有一个只能测速的链接，可以发给在大陆的朋友，请对方在
+和 Joey 类似的网络上打开测一次，最好在晚上。
+
 ## 日常
 
 | 想做的事 | 命令 |
