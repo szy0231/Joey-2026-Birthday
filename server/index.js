@@ -142,10 +142,11 @@ app.post('/api/wishes', express.json({ limit: '200kb' }), wrap(async (req, res) 
   kick();
 }));
 
-// Auth for everything under a wish: the token handed out at creation.
+// Auth for everything under a wish: the token handed out at creation, or the admin key (to add a file for a friend).
 const own = wrap(async (req, res, next) => {
   const w = await readWish(req.params.id);
-  if (!w || !sameToken(w.token, req.get('x-wish-token'))) return fail(res, 404, 'not_found');
+  const ok = w && (sameToken(w.token, req.get('x-wish-token')) || (ADMIN_KEY && sameToken(ADMIN_KEY, req.get('x-admin-key'))));
+  if (!ok) return fail(res, 404, 'not_found');
   req.wish = w; next();
 });
 const offsetOf = async (kind, id) => { try { return (await fsp.stat(KINDS[kind].local(id))).size; } catch { return 0; } };
@@ -257,13 +258,14 @@ app.get('/admin', admin, wrap(async (req, res) => {
   const ws = await allWishes();
   const routes = await speedRoutes(`/admin/speed?mb=24&key=${encodeURIComponent(req.query.key)}`);
   const rows = ws.map((w, i) => `<tr data-id="${w.id}"><td>${i + 1}</td><td>${esc(w.name)}</td><td>${esc(new Date(w.createdAt).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' }))}</td>
-<td class="m">${esc(w.message)}</td><td>${fileCell(w.cover, '没有封面')}</td><td>${fileCell(w.video, '没有视频')}${playCell(w.video)}</td>
+<td class="m">${esc(w.message)}</td><td>${fileCell(w.cover, '没有封面')}</td><td>${fileCell(w.video, '没有视频')}${playCell(w.video)}
+<div class="upl"><button class="up"${w.video ? ' data-replace="1"' : ''}>${w.video ? '换一个视频' : '上传视频'}</button><input type="file" accept="video/*" hidden><span class="upmsg"></span></div></td>
 <td>${w.synced ? '是' : '还没有'}</td><td class="del"><button class="ask">删除</button><span hidden>确定删除 ${esc(w.name)} 的这条？删了找不回来。<br><button class="yes">确定删除</button> <button class="no">取消</button></span></td></tr>`).join('');
   res.set('Cache-Control', 'no-store').type('html').send(`<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex">
 <title>已收到的祝福</title><style>body{font:14px/1.6 system-ui,sans-serif;margin:24px;color:#222}table{border-collapse:collapse;width:100%}
 td,th{border-bottom:1px solid #ddd;padding:8px;text-align:left;vertical-align:top}.m{white-space:pre-wrap;max-width:36em}small{color:#777}.w{overflow-x:auto}
 button{font:inherit;padding:4px 12px;border:1px solid #bbb;border-radius:6px;background:#fff;cursor:pointer}button:disabled{opacity:.5}
-.yes{border-color:#b00;background:#b00;color:#fff}.del{min-width:9em}.del span{color:#b00}.box{background:#f6f3f0;border-radius:8px;padding:12px 16px;margin:12px 0}.wait{color:#b00}</style>
+.yes{border-color:#b00;background:#b00;color:#fff}.upl{margin-top:8px}.upmsg{display:block;font-size:12px;color:#555;margin-top:4px;max-width:32em}.del{min-width:9em}.del span{color:#b00}.box{background:#f6f3f0;border-radius:8px;padding:12px 16px;margin:12px 0}.wait{color:#b00}</style>
 <h1>已收到 ${ws.length} 份祝福</h1>${VIEW_KEY ? `<p><a href="/for-joey/${esc(VIEW_KEY)}">打开 Joey 会看到的页面</a>（这个网址只给 Joey）</p>` : ''}<p>文件存储：${storage.enabled ? 'Cloudflare R2（' + esc(storage.bucket) + '）' : '<b style="color:#b00">R2 未配置，文件只在这台服务器上</b>'}。时间为北京时间。</p>
 <div class="box"><button id="speed">测一下网速</button> <span id="speed-out">分别测每条线路下载到你这台设备的速度。在 Joey 会用的网络上测最有参考价值。</span>
 <p style="margin:8px 0 0">想知道大陆那边的速度：把这个测速链接发给在大陆的朋友，请对方打开后截图给你（这个链接只能测速，看不到祝福）：<br><code style="user-select:all">https://${esc(req.get('host'))}/speedtest/${TEST_KEY}</code></p></div>
@@ -281,6 +283,60 @@ document.querySelector('table').addEventListener('click', async e => {
     if (r && r.ok) td.parentElement.remove();
     else { box.innerHTML = '没删成：' + (r ? (await r.json().catch(() => ({}))).error || r.status : '网络错误') + '。刷新页面再试。'; }
   }
+});
+// Add or replace a friend's video: the same resumable upload the friends' page uses, authorised by the admin key.
+const PIECE = 8 * 1024 * 1024;
+const UPLOAD_ERRORS = { too_large: '视频超过 4 GB', server_full: '服务器硬盘满了', not_found: '这条祝福已经不在了' };
+let uploading = 0;
+addEventListener('beforeunload', e => { if (uploading) { e.preventDefault(); e.returnValue = ''; } });
+async function sendVideo(id, file, show) {
+  const base = '/api/wishes/' + id + '/video';
+  const call = async (method, url, body, type) => {
+    for (let n = 0; ; n++) {
+      try {
+        const headers = { 'X-Admin-Key': key }; if (type) headers['Content-Type'] = type;
+        const r = await fetch(url, { method: method, headers: headers, body: body });
+        if (r.status < 500 || r.status === 507) return r;
+      } catch (err) {}
+      show('网络不稳，正在重连…');
+      await new Promise(res => setTimeout(res, Math.min(1000 * Math.pow(2, n), 8000)));
+    }
+  };
+  let r = await call('POST', base, JSON.stringify({ name: file.name, size: file.size, type: file.type || 'video/quicktime' }), 'application/json');
+  let j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
+  let off = j.offset;
+  while (off < file.size) {
+    show('上传中 ' + Math.floor(off / file.size * 100) + '%（' + Math.round(off / 1e6) + ' / ' + Math.round(file.size / 1e6) + ' MB），请别关这个页面');
+    r = await call('PUT', base + '?offset=' + off, file.slice(off, off + PIECE), 'application/octet-stream');
+    j = await r.json().catch(() => ({}));
+    if (typeof j.offset !== 'number') throw new Error(j.error || ('HTTP ' + r.status));
+    off = j.offset;
+  }
+}
+document.querySelector('table').addEventListener('click', e => {
+  const box = e.target.closest('.upl'); if (!box) return;
+  const btn = box.querySelector('.up'), input = box.querySelector('input'), msg = box.querySelector('.upmsg');
+  if (e.target === btn) {
+    if (btn.dataset.replace && !box.dataset.sure) { msg.innerHTML = '新视频会替换掉原来的。 <button class="sure">确定替换</button> <button class="nope">取消</button>'; return; }
+    input.click();
+  }
+  if (e.target.matches('.sure')) { box.dataset.sure = '1'; msg.textContent = ''; input.click(); }
+  if (e.target.matches('.nope')) msg.textContent = '';
+});
+document.querySelector('table').addEventListener('change', async e => {
+  const input = e.target; if (!input.matches('.upl input') || !input.files[0]) return;
+  const box = input.closest('.upl'), btn = box.querySelector('.up'), msg = box.querySelector('.upmsg'), file = input.files[0];
+  const show = t => { msg.textContent = t; };
+  input.value = ''; btn.disabled = true; uploading++;
+  try {
+    await sendVideo(box.closest('tr').dataset.id, file, show);
+    show('上传完成：' + file.name + '（' + Math.round(file.size / 1e6) + ' MB）。服务器正在存进 R2 并生成播放版，大视频要几分钟，刷新页面可以看进度。');
+  } catch (err) {
+    show('没传成：' + (UPLOAD_ERRORS[err.message] || err.message) + '。再点一次按钮、选同一个文件，会从断开的地方接着传。');
+    btn.disabled = false;
+  }
+  uploading--;
 });
 const ROUTES = ${JSON.stringify(routes)};
 ${MEASURE_JS}

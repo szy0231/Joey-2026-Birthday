@@ -104,6 +104,22 @@ test('admin can delete a wish and every local file that belongs to it', async ()
   assert.equal((await post(`/api/wishes/${clientId}/cover`, { name: 'cover.jpg', size: 10 }, token)).status, 404);
 });
 
+test('the admin key can add a video to a friend\'s wish; nothing else can', async () => {
+  const clientId = crypto.randomUUID();
+  await post('/api/wishes', { clientId, name: 'Rachael', message: 'happy birthday' });
+  const vid = crypto.randomBytes(120_000), url = `/api/wishes/${clientId}/video`;
+  const asAdmin = (method, u, body, type) => fetch(base + u, { method, headers: { 'X-Admin-Key': 'secret', ...(type && { 'Content-Type': type }) }, body });
+  assert.equal((await fetch(base + url, { method: 'POST', headers: { 'X-Admin-Key': 'wrong', 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'IMG_0860.MOV', size: vid.length }) })).status, 404);
+  assert.equal((await fetch(base + url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'IMG_0860.MOV', size: vid.length }) })).status, 404);
+  assert.deepEqual(await (await asAdmin('POST', url, JSON.stringify({ name: 'IMG_0860.MOV', size: vid.length, type: 'video/quicktime' }), 'application/json')).json(), { offset: 0 });
+  assert.deepEqual(await (await asAdmin('PUT', url + '?offset=0', vid.subarray(0, 70_000))).json(), { offset: 70_000, done: false });
+  assert.deepEqual(await (await asAdmin('PUT', url + '?offset=70000', vid.subarray(70_000))).json(), { offset: 120_000, done: true });
+  assert.ok(vid.equals(fs.readFileSync(path.join(data, 'incoming', clientId))));
+  const saved = JSON.parse(fs.readFileSync(path.join(data, 'wishes', clientId + '.json')));
+  assert.equal(saved.video.name, 'IMG_0860.MOV');
+  assert.equal(saved.message, 'happy birthday');
+});
+
 test('admin page needs the key', async () => {
   assert.equal((await fetch(base + '/admin')).status, 404);
   assert.equal((await fetch(base + '/admin?key=nope')).status, 404);
