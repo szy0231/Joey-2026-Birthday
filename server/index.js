@@ -257,6 +257,7 @@ const admin = (req, res, next) => (ADMIN_KEY && sameToken(ADMIN_KEY, req.query.k
 app.get('/admin', admin, wrap(async (req, res) => {
   const ws = await allWishes();
   const routes = await speedRoutes(`/admin/speed?mb=24&key=${encodeURIComponent(req.query.key)}`);
+  const exportBox = await exportsBox(req.query.key);
   const rows = ws.map((w, i) => `<tr data-id="${w.id}"><td>${i + 1}</td><td>${esc(w.name)}</td><td>${esc(new Date(w.createdAt).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' }))}</td>
 <td class="m">${esc(w.message)}</td><td>${fileCell(w.cover, '没有封面')}</td><td>${fileCell(w.video, '没有视频')}${playCell(w.video)}
 <div class="upl"><button class="up"${w.video ? ' data-replace="1"' : ''}>${w.video ? '换一个视频' : '上传视频'}</button><input type="file" accept="video/*" hidden><span class="upmsg"></span></div></td>
@@ -267,6 +268,7 @@ td,th{border-bottom:1px solid #ddd;padding:8px;text-align:left;vertical-align:to
 button{font:inherit;padding:4px 12px;border:1px solid #bbb;border-radius:6px;background:#fff;cursor:pointer}button:disabled{opacity:.5}
 .yes{border-color:#b00;background:#b00;color:#fff}.upl{margin-top:8px}.upmsg{display:block;font-size:12px;color:#555;margin-top:4px;max-width:32em}.del{min-width:9em}.del span{color:#b00}.box{background:#f6f3f0;border-radius:8px;padding:12px 16px;margin:12px 0}.wait{color:#b00}</style>
 <h1>已收到 ${ws.length} 份祝福</h1>${VIEW_KEY ? `<p><a href="/for-joey/${esc(VIEW_KEY)}">打开 Joey 会看到的页面</a>（这个网址只给 Joey）</p>` : ''}<p>文件存储：${storage.enabled ? 'Cloudflare R2（' + esc(storage.bucket) + '）' : '<b style="color:#b00">R2 未配置，文件只在这台服务器上</b>'}。时间为北京时间。</p>
+${exportBox}
 <div class="box"><button id="speed">测一下网速</button> <span id="speed-out">分别测每条线路下载到你这台设备的速度。在 Joey 会用的网络上测最有参考价值。</span>
 <p style="margin:8px 0 0">想知道大陆那边的速度：把这个测速链接发给在大陆的朋友，请对方打开后截图给你（这个链接只能测速，看不到祝福）：<br><code style="user-select:all">https://${esc(req.get('host'))}/speedtest/${TEST_KEY}</code></p></div>
 <div class="w"><table><tr><th>#</th><th>署名</th><th>时间</th><th>祝福</th><th>封面照片</th><th>视频</th><th>文字已备份到 R2</th><th></th></tr>${rows}</table></div>
@@ -423,6 +425,35 @@ document.getElementById('go').onclick = async e => { e.target.disabled = true; a
 </script></html>`);
 }));
 app.get('/admin/speed', admin, sendNoise);
+
+// The zip made by `joey-export` (scripts/export.mjs): everything worth keeping, ready to download.
+const EXPORTS = path.join(DATA, 'export');
+const EXPORT_RE = /^Dear-Joey-[\w-]+\.zip$/;
+async function exportsBox(key) {
+  let files = [];
+  try { files = (await fsp.readdir(EXPORTS)).filter(f => EXPORT_RE.test(f)); } catch {}
+  if (!files.length) return '<div class="box">想把所有东西存到自己电脑上：在服务器上运行 <code>joey-export</code>，完成后这里会出现下载链接。</div>';
+  const rows = [];
+  for (const f of files) {
+    const st = await fsp.stat(path.join(EXPORTS, f));
+    let fromCloud = '';
+    if (storage.enabled) {
+      try {
+        if ((await storage.size('export/' + f)) === st.size) fromCloud = await storage.presign('export/' + f, 7 * 24 * 3600, { ResponseContentDisposition: `attachment; filename="${f}"` });
+      } catch {}
+    }
+    rows.push(`<b>导出包 ${esc(f)}</b> · ${mb(st.size)} · 生成于 ${esc(st.mtime.toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' }))}<br>`
+      + `<a href="/admin/export/${encodeURIComponent(f)}?key=${encodeURIComponent(key)}">从服务器下载</a>`
+      + (fromCloud ? ` · <a href="${esc(fromCloud)}">从 Cloudflare 下载</a>（7 天内有效）` : '')
+      + ' · 先用“测一下网速”看哪条快');
+  }
+  return `<div class="box">${rows.join('<br><br>')}</div>`;
+}
+app.get('/admin/export/:file', admin, (req, res) => {
+  const f = req.params.file;
+  if (!EXPORT_RE.test(f)) return fail(res, 404, 'not_found');
+  res.download(path.join(EXPORTS, f), f, err => { if (err && !res.headersSent) fail(res, 404, 'not_found'); });   // resumable: answers Range
+});
 
 // Remove one wish everywhere: the R2 copies first (so a failure leaves something to retry), then local files.
 const gone = new Set();   // ids deleted while a background job may still be holding them

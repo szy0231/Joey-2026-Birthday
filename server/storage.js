@@ -52,8 +52,9 @@ function bucketStore({ name, bucket, region, endpoint, pathStyle, accessKeyId, s
       await s3.send(new PutObjectCommand({ Bucket: bucket, Key: key, Body: body, ContentType: contentType }));
     },
     // A time-limited link a browser can download straight from the bucket, without the bucket being public.
-    presign(key, seconds) {
-      return getSignedUrl(s3, new GetObjectCommand({ Bucket: bucket, Key: key }), { expiresIn: seconds });
+    // `extra` takes response overrides such as ResponseContentDisposition.
+    presign(key, seconds, extra = {}) {
+      return getSignedUrl(s3, new GetObjectCommand({ Bucket: bucket, Key: key, ...extra }), { expiresIn: seconds });
     },
     async putJSON(key, obj) {
       await s3.send(new PutObjectCommand({ Bucket: bucket, Key: key, Body: JSON.stringify(obj, null, 2), ContentType: 'application/json; charset=utf-8' }));

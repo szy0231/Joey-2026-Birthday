@@ -246,6 +246,10 @@ h1{margin:0;font:italic 500 clamp(56px,17vw,92px)/1 var(--f-latin);letter-spacin
   const $ = id => document.getElementById(id);
   const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
   const API = '/api/view/' + encodeURIComponent(location.pathname.split('/')[2] || '');
+  // The keepsake copy made by scripts/export.mjs carries its postcards inline and its files beside it, so it opens
+  // from a folder on disk with no server and no internet.
+  const KEEPSAKE = window.KEEPSAKE || null;
+  const coverOf = w => (KEEPSAKE ? w.cover : API + '/cover/' + w.id);
   const prep = new URLSearchParams(location.search).has('prep');   // the person setting up the device, not Joey
   document.addEventListener('touchstart', () => {}, {passive:true}); // enables :active on iOS
   const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -283,9 +287,12 @@ h1{margin:0;font:italic 500 clamp(56px,17vw,92px)/1 var(--f-latin);letter-spacin
   async function load(){
     $('retry').hidden = true; $('lead').textContent = '';
     try {
-      const r = await fetch(API + '/wishes', { cache: 'no-store' });
-      if (!r.ok) throw new Error(r.status);
-      wishes = await r.json();
+      if (KEEPSAKE) wishes = KEEPSAKE.wishes;
+      else {
+        const r = await fetch(API + '/wishes', { cache: 'no-store' });
+        if (!r.ok) throw new Error(r.status);
+        wishes = await r.json();
+      }
     } catch (e) {
       $('lead').textContent = '没连上，再试一次'; $('retry').hidden = false; return;
     }
@@ -293,7 +300,7 @@ h1{margin:0;font:italic 500 clamp(56px,17vw,92px)/1 var(--f-latin);letter-spacin
     $('lead').innerHTML = '<b>' + wishes.length + '</b>位朋友给你寄了明信片';
     $('center-n').textContent = wishes.length;
     $('env').hidden = false; $('open-hint').hidden = false;
-    startLoader();                                                   // videos start coming before the envelope is even opened
+    if (!KEEPSAKE) startLoader();                                    // videos start coming before the envelope is even opened
   }
   $('retry').onclick = () => { fx.tap(); load(); };
 
@@ -351,7 +358,7 @@ h1{margin:0;font:italic 500 clamp(56px,17vw,92px)/1 var(--f-latin);letter-spacin
     const it = e.target.closest('.item'); if (!it) return;
     const k = openK = +it.dataset.k, w = wishes[k], card = $('card'), b = it.getBoundingClientRect(), v = w.video;
     card.innerHTML = '<div class="scroll">'
-      + (w.cover ? `<div class="top"><img alt="" src="${API}/cover/${w.id}" onload="this.classList.add('on')"></div>` : `<div class="top plain"><div class="mono">${esc([...w.name][0] || '')}</div></div>`)
+      + (w.cover ? `<div class="top"><img alt="" src="${coverOf(w)}" onload="this.classList.add('on')"></div>` : `<div class="top plain"><div class="mono">${esc([...w.name][0] || '')}</div></div>`)
       + `<p class="from"><i>from</i><b>${esc(w.name)}</b></p><div class="msg">${esc(w.message)}</div>`
       + '</div>';
     const stamp = $('stamp');
@@ -675,6 +682,7 @@ h1{margin:0;font:italic 500 clamp(56px,17vw,92px)/1 var(--f-latin);letter-spacin
       else { buf(0, '这段视频打不开'); $('buf-skip').hidden = true; }
     };
     $('buf-skip').hidden = false;
+    if (KEEPSAKE) return playNow(v.src);                              // the keepsake: every file is already on the disk
     if (j && j.state === 'ready') return playFromDevice(ses);
     if (j && j.state !== 'failed' && j.state !== 'skip') { focusOn(w); return waitForDevice(ses); }
     stream(w, ses);
@@ -717,7 +725,7 @@ h1{margin:0;font:italic 500 clamp(56px,17vw,92px)/1 var(--f-latin);letter-spacin
     setTimeout(() => $('intro').classList.add('leave'), reduce ? 0 : 1100);
     setTimeout(() => {
       $('intro').hidden = true; $('scene').hidden = false; build();
-      wishes.forEach((w, i) => { if (w.cover) setTimeout(() => { new Image().src = API + '/cover/' + w.id; }, 1500 + i * 250); }); // warm the photos
+      wishes.forEach((w, i) => { if (w.cover) setTimeout(() => { new Image().src = coverOf(w); }, 1500 + i * 250); }); // warm the photos
     }, reduce ? 0 : 1600);
   };
   $('snd').onclick = () => {

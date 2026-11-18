@@ -13,7 +13,7 @@ git config --global --get-all safe.directory | grep -qxF "$APP" || git config --
 
 echo "==> 安装系统软件"
 apt-get update -y
-apt-get install -y curl ca-certificates git ffmpeg caddy
+apt-get install -y curl ca-certificates git ffmpeg caddy python3
 if ! command -v node >/dev/null || [ "$(node -p 'process.versions.node.split(".")[0]')" -lt 20 ]; then
   curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
   apt-get install -y nodejs
@@ -120,6 +120,15 @@ CADDY
 fi
 systemctl enable caddy >/dev/null
 systemctl restart caddy
+
+# 把所有东西打包成一个 zip 下载：joey-export
+cat > /usr/local/bin/joey-export <<EXPORT
+#!/usr/bin/env bash
+set -euo pipefail
+cd "$APP"
+exec sudo -u joey node scripts/export.mjs "\$@"
+EXPORT
+chmod +x /usr/local/bin/joey-export
 
 # 以后更新只需要在服务器上输入：joey-update
 cat > /usr/local/bin/joey-update <<UPDATE
